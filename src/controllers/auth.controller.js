@@ -28,7 +28,7 @@ export async function loginByCedula(req, res) {
     const r = await pool.query(q, [cedula.trim()]);
     
     if (r.rowCount === 0) {
-      return res.status(404).json({ message: "Firmante no existe" });
+      return res.status(404).json({ message: "Usuario no existente" });
     }
 
     const firmante = r.rows[0];
@@ -37,7 +37,7 @@ export async function loginByCedula(req, res) {
       return res.status(403).json({ message: "Firmante inactivo" });
     }
 
-    // 🔴 PRIMER PROBLEMA: Verificar que password_hash NO sea null o vacío
+    // CONDICIONAL: Verificar que password_hash NO sea null o vacío
     if (!firmante.password_hash || firmante.password_hash.trim() === '') {
       return res.status(403).json({ 
         message: "Este usuario no tiene contraseña configurada",
@@ -45,7 +45,7 @@ export async function loginByCedula(req, res) {
       });
     }
 
-    // 🔴 SEGUNDO PROBLEMA: bcrypt.compare puede fallar con hash inválido
+    // CONDICION DE SEGURIDAD: bcrypt.compare puede fallar con hash inválido
     let passwordValida = false;
     try {
       // Asegurarse de que el hash tenga el formato correcto

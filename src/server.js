@@ -10,6 +10,7 @@ import accionesRoutes from "./routes/acciones.routes.js";
 import servidoresRoutes from "./routes/servidores.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import firmasRoutes from "./routes/firmas.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 
 const app = express();
@@ -29,6 +30,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/acciones", accionesRoutes);
 app.use("/api/servidores", servidoresRoutes);
 app.use("/api/firmas", firmasRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
