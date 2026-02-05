@@ -11,15 +11,19 @@ const upload = uploadFirma();
 const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
 
 //Crea una acción de personal (BORRADOR)
-router.post("/", requireAuth,requireCargo([CARGO_ASISTENTE_UATH]), async (req, res) => {
-  const { cedula, tipoAccionNombre, motivo } = req.body;
+router.post(
+  "/",
+  requireAuth,
+  requireCargo([CARGO_ASISTENTE_UATH]),
+  async (req, res) => {
+    const { cedula, tipoAccionNombre, motivo } = req.body;
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    //Resolver servidor + puesto activo
-    const baseQ = `
+      //Resolver servidor + puesto activo
+      const baseQ = `
       SELECT sv.id AS servidor_id, p.id AS puesto_id
       FROM core.servidor sv
       JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado='ACTIVA'
@@ -28,45 +32,45 @@ router.post("/", requireAuth,requireCargo([CARGO_ASISTENTE_UATH]), async (req, r
       ORDER BY ap.fecha_inicio DESC
       LIMIT 1;
     `;
-    const base = await client.query(baseQ, [cedula]);
-    if (!base.rows.length) {
-      throw new Error("Servidor no encontrado o sin asignación activa");
-    }
+      const base = await client.query(baseQ, [cedula]);
+      if (!base.rows.length) {
+        throw new Error("Servidor no encontrado o sin asignación activa");
+      }
 
-    //Resolver tipo de acción
-    const taQ = `
+      //Resolver tipo de acción
+      const taQ = `
       SELECT id
       FROM core.tipo_accion
       WHERE nombre = $1 AND activo = true
       LIMIT 1;
     `;
-    const ta = await client.query(taQ, [tipoAccionNombre]);
-    if (!ta.rows.length) {
-      throw new Error("Tipo de acción no existe o está inactivo");
-    }
+      const ta = await client.query(taQ, [tipoAccionNombre]);
+      if (!ta.rows.length) {
+        throw new Error("Tipo de acción no existe o está inactivo");
+      }
 
-    const { servidor_id, puesto_id } = base.rows[0];
-    const tipo_accion_id = ta.rows[0].id;
+      const { servidor_id, puesto_id } = base.rows[0];
+      const tipo_accion_id = ta.rows[0].id;
 
-    //Crear acción_personal (BORRADOR)
-    const accQ = `
+      //Crear acción_personal (BORRADOR)
+      const accQ = `
       INSERT INTO core.accion_personal
         (tipo_accion_id, servidor_id, puesto_id, motivo, estado)
       VALUES
         ($1, $2, $3, $4, 'BORRADOR')
       RETURNING id;
     `;
-    const acc = await client.query(accQ, [
-      tipo_accion_id,
-      servidor_id,
-      puesto_id,
-      motivo || null,
-    ]);
+      const acc = await client.query(accQ, [
+        tipo_accion_id,
+        servidor_id,
+        puesto_id,
+        motivo || null,
+      ]);
 
-    const accion_id = acc.rows[0].id;
+      const accion_id = acc.rows[0].id;
 
-    //Clonar firmas desde plantilla
-    const cloneQ = `
+      //Clonar firmas desde plantilla
+      const cloneQ = `
       INSERT INTO core.accion_firma
         (accion_id, rol_firma, orden, cargo_id, estado)
       SELECT
@@ -80,23 +84,95 @@ router.post("/", requireAuth,requireCargo([CARGO_ASISTENTE_UATH]), async (req, r
         AND taf.activo = true
       ORDER BY taf.orden;
     `;
-    await client.query(cloneQ, [accion_id, tipo_accion_id]);
+      await client.query(cloneQ, [accion_id, tipo_accion_id]);
 
-    await client.query("COMMIT");
-    res.status(201).json({
-      accion_id,
-      estado: "BORRADOR",
-    });
+      await client.query("COMMIT");
+      res.status(201).json({
+        accion_id,
+        estado: "BORRADOR",
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      res.status(500).json({
+        message: "Error creando acción",
+        error: error.message,
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// GET /api/acciones
+// Lista de acciones de personal (tabla principal)
+router.get("/", requireAuth, async (req, res) => {
+  const { estado, tipo_accion, desde, hasta, cedula, fecha } = req.query;
+
+  try {
+    let sql = `
+      SELECT 
+        ap.id,
+        ap.fecha_elaboracion,
+        s.numero_identificacion AS cedula,
+        s.nombres AS servidor,
+        ta.nombre AS tipo_accion,
+        ap.estado
+      FROM core.accion_personal ap
+      JOIN core.servidor s ON s.id = ap.servidor_id
+      JOIN core.tipo_accion ta ON ta.id = ap.tipo_accion_id
+      WHERE 1=1
+    `;
+
+    const values = [];
+    let i = 1;
+
+    if (estado) {
+      sql += ` AND ap.estado = $${i++}`;
+      values.push(estado);
+    }
+
+    if (tipo_accion) {
+      sql += ` AND ta.nombre = $${i++}`;
+      values.push(tipo_accion);
+    }
+
+    if (cedula) {
+      sql += ` AND s.numero_identificacion = $${i++}`;
+      values.push(cedula);
+    }
+
+    // Rango de fechas (siempre mejor castear a date)
+    if (desde) {
+      sql += ` AND ap.fecha_elaboracion::date >= $${i++}::date`;
+      values.push(desde);
+    }
+
+    if (hasta) {
+      sql += ` AND ap.fecha_elaboracion::date <= $${i++}::date`;
+      values.push(hasta);
+    }
+
+    // Fecha exacta (si mandas fecha, ignora desde/hasta si quieres)
+    if (fecha) {
+      sql += ` AND ap.fecha_elaboracion::date = $${i++}::date`;
+      values.push(fecha);
+    }
+
+    sql += ` ORDER BY ap.fecha_elaboracion DESC`;
+
+    const { rows } = await pool.query(sql, values);
+
+    // Devuelve array para que el frontend renderice como antes
+    return res.json(rows);
   } catch (error) {
-    await client.query("ROLLBACK");
-    res.status(500).json({
-      message: "Error creando acción",
+    console.error("Error obteniendo acciones:", error);
+    return res.status(500).json({
+      message: "Error obteniendo acciones de personal",
       error: error.message,
     });
-  } finally {
-    client.release();
   }
 });
+
 
 //GET /api/acciones/:id/firma-pendiente
 router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
@@ -134,7 +210,7 @@ router.post(
   "/:accionId/firmas/subir",
   requireAuth,
   upload.single("file"),
-  subirFirmado
+  subirFirmado,
 );
 
 export default router;
