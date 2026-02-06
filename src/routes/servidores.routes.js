@@ -9,6 +9,10 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
 
   const sql = `
     SELECT
+      sv.id AS servidor_id,
+      ap.id AS asignacion_puesto_id,
+      p.id AS puesto_id,
+
       sv.numero_identificacion AS cedula,
       sv.nombres,
       sv.canton AS lugar_trabajo,
@@ -21,12 +25,15 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
       p.grado,
       p.rmu_puesto,
 
+      u.id AS unidad_organica_id,
       u.codigo_legacy AS cod_unidad_organica,
       u.nombre AS unidad_organica,
 
+      d.id AS denominacion_puesto_id,
       d.codigo_legacy AS cod_denominacion,
       d.nombre AS denominacion_puesto,
 
+      eo.id AS escala_ocupacional_id,
       eo.codigo AS cod_grupo_ocupacional,
       eo.nombre AS grupo_ocupacional
     FROM core.servidor sv
@@ -52,5 +59,6 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
   if (!rows.length) return res.status(404).json({ message: "Servidor no encontrado o sin asignación activa" });
   res.json(rows[0]);
 });
+
 
 export default router;
