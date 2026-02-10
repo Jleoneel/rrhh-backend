@@ -30,3 +30,31 @@ export function uploadFirma() {
     limits: { fileSize: 20 * 1024 * 1024 },
   });
 }
+
+export function uploadAnexo() {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      const accionId = req.params.accionId;
+      const base = path.resolve(process.env.UPLOADS_DIR || "uploads");
+      const dir = path.join(base, "acciones", accionId, "anexos");
+      ensureDir(dir);
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || "");
+      const baseName = path
+        .basename(file.originalname || "archivo", ext)
+        .replace(/[^\w.-]+/g, "_")
+        .slice(0, 60);
+
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      cb(null, `${baseName}_${ts}${ext}`);
+    },
+  });
+
+  return multer({
+    storage,
+    // por ahora aceptamos todo (puedes limitar luego)
+    limits: { fileSize: 20 * 1024 * 1024 },
+  });
+}

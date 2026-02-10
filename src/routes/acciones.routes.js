@@ -1,89 +1,96 @@
-  import { Router } from "express";
-  import { pool } from "../db.js";
+import { Router } from "express";
+import { pool } from "../db.js";
+import * as anexosCtrl from "../controllers/accionesAnexos.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
+import { uploadFirma } from "../utils/upload.js";
+import { subirFirmado } from "../controllers/accionesFirma.controller.js";
+import { requireCargo } from "../middleware/requireCargo.middleware.js";
+import { uploadAnexo } from "../utils/upload.js";
 
-  import { requireAuth } from "../middleware/auth.middleware.js";
-  import { uploadFirma } from "../utils/upload.js";
-  import { subirFirmado } from "../controllers/accionesFirma.controller.js";
-  import { requireCargo } from "../middleware/requireCargo.middleware.js";
 
-  const router = Router();
-  const upload = uploadFirma();
 
-  const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
+const router = Router();
+const upload = uploadFirma();
+const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
+const uploadAnx = uploadAnexo();
 
-  const parseBoolean = (value) => {
-    console.log("parseBoolean recibió:", value, "tipo:", typeof value);
 
-    if (value === undefined || value === null) return false;
+const parseBoolean = (value) => {
+  console.log("parseBoolean recibió:", value, "tipo:", typeof value);
 
-    if (typeof value === "boolean") return value;
-    if (typeof value === "string") {
-      const lower = value.toLowerCase().trim();
-      // Manejar más casos
-      if (
-        lower === "true" ||
-        lower === "si" ||
-        lower === "sí" ||
-        lower === "yes" ||
-        lower === "1" ||
-        lower === "verdadero"
-      ) {
-        return true;
-      }
-      if (
-        lower === "false" ||
-        lower === "no" ||
-        lower === "0" ||
-        lower === "falso"
-      ) {
-        return false;
-      }
-      return Boolean(value);
+  if (value === undefined || value === null) return false;
+
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const lower = value.toLowerCase().trim();
+    // Manejar más casos
+    if (
+      lower === "true" ||
+      lower === "si" ||
+      lower === "sí" ||
+      lower === "yes" ||
+      lower === "1" ||
+      lower === "verdadero"
+    ) {
+      return true;
     }
-    if (typeof value === "number") return value === 1;
+    if (
+      lower === "false" ||
+      lower === "no" ||
+      lower === "0" ||
+      lower === "falso"
+    ) {
+      return false;
+    }
     return Boolean(value);
-  };
-  // POST /api/acciones
-  // Crea una acción de personal (BORRADOR)
-  router.post("/",requireAuth, requireCargo([CARGO_ASISTENTE_UATH]),
-    async (req, res) => {
-      const {
-        cedula,
-        puestoId,
-        tipoAccionNombre,
-        tipoAccionOtroDetalle,
-        rigeDesde,
-        rigeHasta,
-        motivo,
-        presentoDeclaracionJurada,
-      } = req.body;
+  }
+  if (typeof value === "number") return value === 1;
+  return Boolean(value);
+};
+// POST /api/acciones
+// Crea una acción de personal (BORRADOR)
+router.post(
+  "/",
+  requireAuth,
+  requireCargo([CARGO_ASISTENTE_UATH]),
+  async (req, res) => {
+    const {
+      cedula,
+      puestoId,
+      tipoAccionNombre,
+      tipoAccionOtroDetalle,
+      rigeDesde,
+      rigeHasta,
+      motivo,
+      presentoDeclaracionJurada,
+    } = req.body;
 
-      // Validaciones mínimas
-      if (!cedula || !String(cedula).trim()) {
-        return res.status(400).json({ message: "cedula es requerida" });
+    // Validaciones mínimas
+    if (!cedula || !String(cedula).trim()) {
+      return res.status(400).json({ message: "cedula es requerida" });
+    }
+    if (!tipoAccionNombre || !String(tipoAccionNombre).trim()) {
+      return res.status(400).json({ message: "tipoAccionNombre es requerido" });
+    }
+    if (!rigeDesde) {
+      return res.status(400).json({ message: "rigeDesde es requerido" });
+    }
+    if (tipoAccionNombre === "Otro") {
+      if (!tipoAccionOtroDetalle || !String(tipoAccionOtroDetalle).trim()) {
+        return res.status(400).json({
+          message:
+            "tipoAccionOtroDetalle es requerido cuando tipoAccionNombre es 'Otro'",
+        });
       }
-      if (!tipoAccionNombre || !String(tipoAccionNombre).trim()) {
-        return res.status(400).json({ message: "tipoAccionNombre es requerido" });
-      }
-      if (!rigeDesde) {
-        return res.status(400).json({ message: "rigeDesde es requerido" });
-      }
-      if (tipoAccionNombre === "Otro") {
-        if (!tipoAccionOtroDetalle || !String(tipoAccionOtroDetalle).trim()) {
-          return res.status(400).json({
-            message:
-              "tipoAccionOtroDetalle es requerido cuando tipoAccionNombre es 'Otro'",
-          });
-        }
-      }
+    }
 
-      const client = await pool.connect();
+    const client = await pool.connect();
 
-      try {
-        await client.query("BEGIN");
+    try {
+      await client.query("BEGIN");
 
-        // 1) Resolver servidor + puesto ACTIVO por cédula
-        const baseQ = `
+      // 1) Resolver servidor + puesto ACTIVO por cédula
+      const baseQ = `
           SELECT
             sv.id AS servidor_id,
             ap.id AS asignacion_puesto_id,
@@ -98,59 +105,59 @@
           ORDER BY ap.fecha_inicio DESC NULLS LAST
           LIMIT 1;
         `;
-        const base = await client.query(baseQ, [String(cedula).trim()]);
-        if (!base.rows.length) {
-          await client.query("ROLLBACK");
-          return res
-            .status(404)
-            .json({ message: "Servidor no encontrado o sin asignación activa" });
-        }
-        const { servidor_id, puesto_activo_id } = base.rows[0];
-        const puesto_id = puestoId || puesto_activo_id;
+      const base = await client.query(baseQ, [String(cedula).trim()]);
+      if (!base.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .json({ message: "Servidor no encontrado o sin asignación activa" });
+      }
+      const { servidor_id, puesto_activo_id } = base.rows[0];
+      const puesto_id = puestoId || puesto_activo_id;
 
-        // 2) Resolver tipo_accion_id por nombre
-        const taQ = `
+      // 2) Resolver tipo_accion_id por nombre
+      const taQ = `
           SELECT id
           FROM core.tipo_accion
           WHERE nombre = $1 AND activo = true
           LIMIT 1;
         `;
 
-        const ta = await client.query(taQ, [String(tipoAccionNombre).trim()]);
-        if (!ta.rows.length) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({
-            message: "Tipo de acción no existe o está inactivo",
-          });
-        }
+      const ta = await client.query(taQ, [String(tipoAccionNombre).trim()]);
+      if (!ta.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "Tipo de acción no existe o está inactivo",
+        });
+      }
 
-        const tipo_accion_id = ta.rows[0].id;
+      const tipo_accion_id = ta.rows[0].id;
 
-        // 3) Crear accion_personal (BORRADOR) + campos extra
-        const accQ = `
+      // 3) Crear accion_personal (BORRADOR) + campos extra
+      const accQ = `
       INSERT INTO core.accion_personal
         (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada)
       VALUES
         ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8)
       RETURNING id, estado, numero_elaboracion, codigo_elaboracion;
   `;
-        // 3) Crear accion_personal (BORRADOR) + campos extra
-        const acc = await client.query(accQ, [
-          tipo_accion_id,
-          servidor_id,
-          puesto_id,
-          motivo,
-          rigeDesde,
-          rigeHasta || null,
-          tipoAccionNombre === "Otro"
-            ? String(tipoAccionOtroDetalle).trim()
-            : null,
-          parseBoolean(presentoDeclaracionJurada),
-        ]);
+      // 3) Crear accion_personal (BORRADOR) + campos extra
+      const acc = await client.query(accQ, [
+        tipo_accion_id,
+        servidor_id,
+        puesto_id,
+        motivo,
+        rigeDesde,
+        rigeHasta || null,
+        tipoAccionNombre === "Otro"
+          ? String(tipoAccionOtroDetalle).trim()
+          : null,
+        parseBoolean(presentoDeclaracionJurada),
+      ]);
 
-        // 4) Clonar firmas desde plantilla
-        const accion_id = acc.rows[0].id;
-        const cloneQ = `
+      // 4) Clonar firmas desde plantilla
+      const accion_id = acc.rows[0].id;
+      const cloneQ = `
           INSERT INTO core.accion_firma
             (accion_id, rol_firma, orden, cargo_id, estado)
           SELECT
@@ -164,41 +171,41 @@
             AND taf.activo = true
           ORDER BY taf.orden;
         `;
-        await client.query(cloneQ, [accion_id, tipo_accion_id]);
+      await client.query(cloneQ, [accion_id, tipo_accion_id]);
 
-        // 5) Crear propuesta por defecto (para Step 3)
-        const propuestaQ = `
+      // 5) Crear propuesta por defecto (para Step 3)
+      const propuestaQ = `
           INSERT INTO core.accion_situacion_propuesta (accion_id)
           VALUES ($1)
           ON CONFLICT (accion_id) DO NOTHING;
         `;
-        await client.query(propuestaQ, [accion_id]);
+      await client.query(propuestaQ, [accion_id]);
 
-        await client.query("COMMIT");
+      await client.query("COMMIT");
 
-        return res.status(201).json({
-          accion_id,
-          estado: acc.rows[0].estado,
-          numero_elaboracion: acc.rows[0].numero_elaboracion,
-        });
-      } catch (error) {
-        await client.query("ROLLBACK");
-        return res.status(500).json({
-          message: "Error creando acción",
-          error: error.message,
-        });
-      } finally {
-        client.release();
-      }
-    },
-  );
-  // GET /api/acciones
-  // Lista + filtros
-  router.get("/", requireAuth, async (req, res) => {
-    const { estado, tipo_accion, desde, hasta, cedula, fecha } = req.query;
+      return res.status(201).json({
+        accion_id,
+        estado: acc.rows[0].estado,
+        numero_elaboracion: acc.rows[0].numero_elaboracion,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      return res.status(500).json({
+        message: "Error creando acción",
+        error: error.message,
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+// GET /api/acciones
+// Lista + filtros
+router.get("/", requireAuth, async (req, res) => {
+  const { estado, tipo_accion, desde, hasta, cedula, fecha } = req.query;
 
-    try {
-      let sql = `
+  try {
+    let sql = `
         SELECT 
           ap.id, 
           ap.numero_elaboracion,
@@ -213,56 +220,56 @@
         WHERE 1=1
       `;
 
-      const values = [];
-      let i = 1;
+    const values = [];
+    let i = 1;
 
-      if (estado) {
-        sql += ` AND ap.estado = $${i++}`;
-        values.push(estado);
-      }
-
-      if (tipo_accion) {
-        sql += ` AND ta.nombre = $${i++}`;
-        values.push(tipo_accion);
-      }
-
-      if (cedula) {
-        sql += ` AND s.numero_identificacion = $${i++}`;
-        values.push(cedula);
-      }
-
-      if (desde) {
-        sql += ` AND ap.fecha_elaboracion::date >= $${i++}::date`;
-        values.push(desde);
-      }
-
-      if (hasta) {
-        sql += ` AND ap.fecha_elaboracion::date <= $${i++}::date`;
-        values.push(hasta);
-      }
-
-      if (fecha) {
-        sql += ` AND ap.fecha_elaboracion::date = $${i++}::date`;
-        values.push(fecha);
-      }
-
-      sql += ` ORDER BY ap.fecha_elaboracion DESC`;
-
-      const { rows } = await pool.query(sql, values);
-      return res.json(rows);
-    } catch (error) {
-      return res.status(500).json({
-        message: "Error obteniendo acciones de personal",
-        error: error.message,
-      });
+    if (estado) {
+      sql += ` AND ap.estado = $${i++}`;
+      values.push(estado);
     }
-  });
 
-  // GET /api/acciones/:id/firma-pendiente
-  router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
-    const { id } = req.params;
+    if (tipo_accion) {
+      sql += ` AND ta.nombre = $${i++}`;
+      values.push(tipo_accion);
+    }
 
-    const sql = `
+    if (cedula) {
+      sql += ` AND s.numero_identificacion = $${i++}`;
+      values.push(cedula);
+    }
+
+    if (desde) {
+      sql += ` AND ap.fecha_elaboracion::date >= $${i++}::date`;
+      values.push(desde);
+    }
+
+    if (hasta) {
+      sql += ` AND ap.fecha_elaboracion::date <= $${i++}::date`;
+      values.push(hasta);
+    }
+
+    if (fecha) {
+      sql += ` AND ap.fecha_elaboracion::date = $${i++}::date`;
+      values.push(fecha);
+    }
+
+    sql += ` ORDER BY ap.fecha_elaboracion DESC`;
+
+    const { rows } = await pool.query(sql, values);
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error obteniendo acciones de personal",
+      error: error.message,
+    });
+  }
+});
+
+// GET /api/acciones/:id/firma-pendiente
+router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  const sql = `
       SELECT
         af.id,
         af.orden,
@@ -278,28 +285,28 @@
       LIMIT 1;
     `;
 
-    const { rows } = await pool.query(sql, [id]);
+  const { rows } = await pool.query(sql, [id]);
 
-    if (!rows.length) {
-      return res.json({ message: "No hay firmas pendientes" });
-    }
+  if (!rows.length) {
+    return res.json({ message: "No hay firmas pendientes" });
+  }
 
-    res.json(rows[0]);
-  });
+  res.json(rows[0]);
+});
 
-  // POST /api/acciones/:accionId/firmas/subir
-  router.post(
-    "/:accionId/firmas/subir",
-    requireAuth,
-    upload.single("file"),
-    subirFirmado,
-  );
+// POST /api/acciones/:accionId/firmas/subir
+router.post(
+  "/:accionId/firmas/subir",
+  requireAuth,
+  upload.single("file"),
+  subirFirmado,
+);
 
-  // GET /api/acciones/:id/propuesta
-  router.get("/:id/propuesta", requireAuth, async (req, res) => {
-    const { id } = req.params;
+// GET /api/acciones/:id/propuesta
+router.get("/:id/propuesta", requireAuth, async (req, res) => {
+  const { id } = req.params;
 
-    const sql = `
+  const sql = `
       SELECT
         asp.*,
         u.nombre AS unidad_organica_nombre,
@@ -313,43 +320,43 @@
       LIMIT 1;
     `;
 
-    const { rows } = await pool.query(sql, [id]);
-    if (!rows.length) return res.json(null);
-    return res.json(rows[0]);
-  });
+  const { rows } = await pool.query(sql, [id]);
+  if (!rows.length) return res.json(null);
+  return res.json(rows[0]);
+});
 
-  // PUT /api/acciones/:id/propuesta
-  router.put("/:id/propuesta", requireAuth, async (req, res) => {
-    const { id } = req.params;
+// PUT /api/acciones/:id/propuesta
+router.put("/:id/propuesta", requireAuth, async (req, res) => {
+  const { id } = req.params;
 
-    const {
-      proceso_institucional,
-      nivel_gestion,
-      unidad_organica_id,
-      denominacion_puesto_id,
-      escala_ocupacional_id,
-      lugar_trabajo,
-      grado,
-      rmu_puesto,
-      partida_individual,
-    } = req.body;
+  const {
+    proceso_institucional,
+    nivel_gestion,
+    unidad_organica_id,
+    denominacion_puesto_id,
+    escala_ocupacional_id,
+    lugar_trabajo,
+    grado,
+    rmu_puesto,
+    partida_individual,
+  } = req.body;
 
-    const check = await pool.query(
-      `SELECT estado FROM core.accion_personal WHERE id = $1`,
-      [id],
-    );
+  const check = await pool.query(
+    `SELECT estado FROM core.accion_personal WHERE id = $1`,
+    [id],
+  );
 
-    if (!check.rows.length) {
-      return res.status(404).json({ message: "Acción no encontrada" });
-    }
+  if (!check.rows.length) {
+    return res.status(404).json({ message: "Acción no encontrada" });
+  }
 
-    if (check.rows[0].estado !== "BORRADOR") {
-      return res.status(409).json({
-        message: "Solo se puede editar la propuesta en estado BORRADOR",
-      });
-    }
+  if (check.rows[0].estado !== "BORRADOR") {
+    return res.status(409).json({
+      message: "Solo se puede editar la propuesta en estado BORRADOR",
+    });
+  }
 
-    const sql = `
+  const sql = `
       INSERT INTO core.accion_situacion_propuesta (
         accion_id,
         proceso_institucional_id,
@@ -379,21 +386,40 @@
       RETURNING *;
     `;
 
-    const values = [
-      id,
-      proceso_institucional || null,
-      nivel_gestion || null,
-      unidad_organica_id || null,
-      denominacion_puesto_id || null,
-      escala_ocupacional_id || null,
-      lugar_trabajo || null,
-      grado || null,
-      rmu_puesto ?? null,
-      partida_individual || null,
-    ];
+  const values = [
+    id,
+    proceso_institucional || null,
+    nivel_gestion || null,
+    unidad_organica_id || null,
+    denominacion_puesto_id || null,
+    escala_ocupacional_id || null,
+    lugar_trabajo || null,
+    grado || null,
+    rmu_puesto ?? null,
+    partida_individual || null,
+  ];
 
-    const { rows } = await pool.query(sql, values);
-    return res.json(rows[0]);
-  });
+  const { rows } = await pool.query(sql, values);
+  return res.json(rows[0]);
+});
 
-  export default router;
+router.get("/:accionId/anexos", requireAuth, anexosCtrl.listar);
+router.post(
+  "/:accionId/anexos",
+  requireAuth,
+  uploadAnx.single("file"),
+  anexosCtrl.subir
+);
+router.get(
+  "/:accionId/anexos/:anexoId/descargar",
+  requireAuth,
+  anexosCtrl.descargar
+);
+
+router.delete(
+  "/:accionId/anexos/:anexoId",
+  requireAuth,
+  anexosCtrl.eliminar
+);
+
+export default router;
