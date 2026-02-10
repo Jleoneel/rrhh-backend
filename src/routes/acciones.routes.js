@@ -7,23 +7,16 @@ import { subirFirmado } from "../controllers/accionesFirma.controller.js";
 import { requireCargo } from "../middleware/requireCargo.middleware.js";
 import { uploadAnexo } from "../utils/upload.js";
 
-
-
 const router = Router();
 const upload = uploadFirma();
 const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
 const uploadAnx = uploadAnexo();
 
-
 const parseBoolean = (value) => {
-  console.log("parseBoolean recibió:", value, "tipo:", typeof value);
-
   if (value === undefined || value === null) return false;
-
   if (typeof value === "boolean") return value;
   if (typeof value === "string") {
     const lower = value.toLowerCase().trim();
-    // Manejar más casos
     if (
       lower === "true" ||
       lower === "si" ||
@@ -140,9 +133,8 @@ router.post(
       VALUES
         ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8)
       RETURNING id, estado, numero_elaboracion, codigo_elaboracion;
-  `;
-      // 3) Crear accion_personal (BORRADOR) + campos extra
-      const acc = await client.query(accQ, [
+  `;    
+        const acc = await client.query(accQ, [
         tipo_accion_id,
         servidor_id,
         puesto_id,
@@ -404,9 +396,10 @@ router.put("/:id/propuesta", requireAuth, async (req, res) => {
 });
 
 router.get("/:accionId/anexos", requireAuth, anexosCtrl.listar);
-router.post(
-  "/:accionId/anexos",
+
+router.post("/:accionId/anexos",
   requireAuth,
+  requireCargo([CARGO_ASISTENTE_UATH]),
   uploadAnx.single("file"),
   anexosCtrl.subir
 );
@@ -419,6 +412,7 @@ router.get(
 router.delete(
   "/:accionId/anexos/:anexoId",
   requireAuth,
+  requireCargo([CARGO_ASISTENTE_UATH]),
   anexosCtrl.eliminar
 );
 
