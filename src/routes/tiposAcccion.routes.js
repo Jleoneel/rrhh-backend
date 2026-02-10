@@ -10,7 +10,8 @@ router.get("/", requireAuth, async (req, res) => {
     const sql = `
       SELECT
         id,
-        nombre
+        nombre,
+        requiere_propuesta
       FROM core.tipo_accion
       WHERE activo = true
       ORDER BY nombre;
