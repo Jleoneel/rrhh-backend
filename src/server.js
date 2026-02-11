@@ -13,6 +13,7 @@ import firmasRoutes from "./routes/firmas.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 import tiposAcccionRoutes from "./routes/tiposAcccion.routes.js";
 import catalogosRoutes from "./routes/catalogos.routes.js";
+import accionesPdfRoutes from "./routes/accionesPdf.routes.js";
 
 
 const app = express();
@@ -35,6 +36,7 @@ app.use("/api/firmas", firmasRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/tipos-accion", tiposAcccionRoutes);
 app.use("/api/catalogos", catalogosRoutes);
+app.use("/api", accionesPdfRoutes);
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
