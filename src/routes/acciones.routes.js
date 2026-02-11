@@ -293,6 +293,242 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/acciones/:id  (detalle completo)
+router.get("/:id", requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const accQ = `
+      SELECT
+        ap.id,
+        ap.estado,
+        ap.motivo,
+        ap.rige_desde,
+        ap.rige_hasta,
+        ap.tipo_accion_id,
+        ap.tipo_accion_otro_detalle,
+        ap.presento_declaracion_jurada,
+        ap.numero_elaboracion,
+        ap.fecha_elaboracion,
+        s.numero_identificacion AS cedula,
+        s.nombres AS servidor_nombre,
+        ta.nombre AS tipo_accion_nombre,
+        ta.requiere_propuesta
+      FROM core.accion_personal ap
+      JOIN core.servidor s ON s.id = ap.servidor_id
+      JOIN core.tipo_accion ta ON ta.id = ap.tipo_accion_id
+      WHERE ap.id = $1
+      LIMIT 1;
+    `;
+
+    const accR = await pool.query(accQ, [id]);
+    if (!accR.rows.length) {
+      return res.status(404).json({ message: "Acción no encontrada" });
+    }
+
+    const propuestaQ = `
+      SELECT
+        accion_id,
+        proceso_institucional_id,
+        nivel_gestion_id,
+        unidad_organica_id,
+        denominacion_puesto_id,
+        escala_ocupacional_id,
+        lugar_trabajo,
+        grado,
+        rmu_puesto,
+        partida_individual
+      FROM core.accion_situacion_propuesta
+      WHERE accion_id = $1
+      LIMIT 1;
+    `;
+    const propR = await pool.query(propuestaQ, [id]);
+
+    return res.json({
+      accion: accR.rows[0],
+      propuesta: propR.rows[0] || null,
+    });
+  } catch (e) {
+    return res
+      .status(500)
+      .json({ message: "Error cargando detalle", error: e.message });
+  }
+});
+
+// PUT /api/acciones/:id  (editar acción completa)
+router.put(
+  "/:id",
+  requireAuth,
+  requireCargo([CARGO_ASISTENTE_UATH]),
+  async (req, res) => {
+    const { id } = req.params;
+    const {
+      tipoAccionNombre,
+      tipoAccionOtroDetalle,
+      rigeDesde,
+      rigeHasta,
+      motivo,
+      presentoDeclaracionJurada,
+      propuesta, // opcional: { proceso_institucional_id, nivel_gestion_id, ... }
+    } = req.body;
+
+    if (!tipoAccionNombre || !String(tipoAccionNombre).trim()) {
+      return res.status(400).json({ message: "tipoAccionNombre es requerido" });
+    }
+    if (!rigeDesde)
+      return res.status(400).json({ message: "rigeDesde es requerido" });
+
+    if (String(tipoAccionNombre).trim() === "Otro") {
+      if (!tipoAccionOtroDetalle || !String(tipoAccionOtroDetalle).trim()) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "tipoAccionOtroDetalle es requerido si tipoAccionNombre es 'Otro'",
+          });
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // 1) verificar acción y estado
+      const checkR = await client.query(
+        `SELECT estado, tipo_accion_id FROM core.accion_personal WHERE id=$1`,
+        [id],
+      );
+      if (!checkR.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Acción no encontrada" });
+      }
+      if (checkR.rows[0].estado !== "BORRADOR") {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Solo se puede editar en BORRADOR" });
+      }
+
+      const oldTipoId = checkR.rows[0].tipo_accion_id;
+
+      // 2) resolver nuevo tipo_accion_id
+      const taR = await client.query(
+        `SELECT id, requiere_propuesta FROM core.tipo_accion WHERE nombre=$1 AND activo=true LIMIT 1`,
+        [String(tipoAccionNombre).trim()],
+      );
+      if (!taR.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ message: "Tipo de acción no existe o está inactivo" });
+      }
+
+      const newTipoId = taR.rows[0].id;
+      const requierePropuesta = taR.rows[0].requiere_propuesta;
+
+      // 3) update accion_personal
+      const updAccQ = `
+        UPDATE core.accion_personal
+        SET
+          tipo_accion_id = $2,
+          motivo = $3,
+          rige_desde = $4::date,
+          rige_hasta = $5::date,
+          tipo_accion_otro_detalle = $6,
+          presento_declaracion_jurada = $7
+        WHERE id = $1
+        RETURNING id, estado, numero_elaboracion;
+      `;
+      const updAccR = await client.query(updAccQ, [
+        id,
+        newTipoId,
+        motivo ?? null,
+        rigeDesde,
+        rigeHasta || null,
+        String(tipoAccionNombre).trim() === "Otro"
+          ? String(tipoAccionOtroDetalle).trim()
+          : null,
+        parseBoolean(presentoDeclaracionJurada),
+      ]);
+
+      // 4) si cambió tipo -> re-clonar firmas
+      if (String(oldTipoId) !== String(newTipoId)) {
+        await client.query(`DELETE FROM core.accion_firma WHERE accion_id=$1`, [
+          id,
+        ]);
+
+        const cloneQ = `
+          INSERT INTO core.accion_firma
+            (accion_id, rol_firma, orden, cargo_id, estado)
+          SELECT
+            $1, taf.rol_firma, taf.orden, taf.cargo_id, 'PENDIENTE'
+          FROM core.tipo_accion_firma taf
+          WHERE taf.tipo_accion_id = $2 AND taf.activo = true
+          ORDER BY taf.orden;
+        `;
+        await client.query(cloneQ, [id, newTipoId]);
+      }
+
+      // 5) propuesta (si aplica)
+      if (requierePropuesta) {
+        const p = propuesta || {};
+        const upsertPropQ = `
+          INSERT INTO core.accion_situacion_propuesta (
+            accion_id,
+            proceso_institucional_id,
+            nivel_gestion_id,
+            unidad_organica_id,
+            denominacion_puesto_id,
+            escala_ocupacional_id,
+            lugar_trabajo,
+            grado,
+            rmu_puesto,
+            partida_individual
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          ON CONFLICT (accion_id)
+          DO UPDATE SET
+            proceso_institucional_id = EXCLUDED.proceso_institucional_id,
+            nivel_gestion_id = EXCLUDED.nivel_gestion_id,
+            unidad_organica_id = EXCLUDED.unidad_organica_id,
+            denominacion_puesto_id = EXCLUDED.denominacion_puesto_id,
+            escala_ocupacional_id = EXCLUDED.escala_ocupacional_id,
+            lugar_trabajo = EXCLUDED.lugar_trabajo,
+            grado = EXCLUDED.grado,
+            rmu_puesto = EXCLUDED.rmu_puesto,
+            partida_individual = EXCLUDED.partida_individual
+          RETURNING *;
+        `;
+        await client.query(upsertPropQ, [
+          id,
+          p.proceso_institucional_id || null,
+          p.nivel_gestion_id || null,
+          p.unidad_organica_id || null,
+          p.denominacion_puesto_id || null,
+          p.escala_ocupacional_id || null,
+          p.lugar_trabajo || null,
+          p.grado || null,
+          p.rmu_puesto ?? null,
+          p.partida_individual || null,
+        ]);
+      }
+
+      await client.query("COMMIT");
+      return res.json({
+        message: "Acción actualizada",
+        accion: updAccR.rows[0],
+      });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      return res
+        .status(500)
+        .json({ message: "Error actualizando", error: e.message });
+    } finally {
+      client.release();
+    }
+  },
+);
+
 // GET /api/acciones/:id/firma-pendiente
 router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
   const { id } = req.params;
@@ -441,6 +677,7 @@ router.post(
   uploadAnx.single("file"),
   anexosCtrl.subir,
 );
+
 router.get("/:accionId/anexos/:anexoId/descargar", anexosCtrl.descargar);
 
 router.delete(
