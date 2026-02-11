@@ -40,6 +40,42 @@ const parseBoolean = (value) => {
   if (typeof value === "number") return value === 1;
   return Boolean(value);
 };
+
+export async function requirePuedeFirmarPaso(req, res, next) {
+  const { accionId } = req.params;
+  const { cargo_id } = req.user;
+
+  const q = `
+    SELECT cargo_id, orden, rol_firma
+    FROM core.accion_firma
+    WHERE accion_id = $1 AND estado = 'PENDIENTE'
+    ORDER BY orden ASC
+    LIMIT 1;
+  `;
+  const { rows } = await pool.query(q, [accionId]);
+
+  if (!rows.length) {
+    return res.status(409).json({
+      message: "No hay firmas pendientes. Acción finalizada.",
+      code: "NO_PENDING_SIGNATURES",
+    });
+  }
+
+  const pend = rows[0];
+
+  if (pend.cargo_id !== cargo_id) {
+    return res.status(403).json({
+      message: "No autorizado para firmar este paso",
+      orden_pendiente: pend.orden,
+      rol_firma: pend.rol_firma,
+      cargo_requerido: pend.cargo_id,
+      tu_cargo: cargo_id,
+    });
+  }
+
+  next();
+}
+
 // POST /api/acciones
 // Crea una acción de personal (BORRADOR)
 router.post(
@@ -133,8 +169,8 @@ router.post(
       VALUES
         ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8)
       RETURNING id, estado, numero_elaboracion, codigo_elaboracion;
-  `;    
-        const acc = await client.query(accQ, [
+  `;
+      const acc = await client.query(accQ, [
         tipo_accion_id,
         servidor_id,
         puesto_id,
@@ -290,6 +326,7 @@ router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
 router.post(
   "/:accionId/firmas/subir",
   requireAuth,
+  requirePuedeFirmarPaso,
   upload.single("file"),
   subirFirmado,
 );
@@ -397,23 +434,20 @@ router.put("/:id/propuesta", requireAuth, async (req, res) => {
 
 router.get("/:accionId/anexos", requireAuth, anexosCtrl.listar);
 
-router.post("/:accionId/anexos",
+router.post(
+  "/:accionId/anexos",
   requireAuth,
   requireCargo([CARGO_ASISTENTE_UATH]),
   uploadAnx.single("file"),
-  anexosCtrl.subir
+  anexosCtrl.subir,
 );
-router.get(
-  "/:accionId/anexos/:anexoId/descargar",
-  requireAuth,
-  anexosCtrl.descargar
-);
+router.get("/:accionId/anexos/:anexoId/descargar", anexosCtrl.descargar);
 
 router.delete(
   "/:accionId/anexos/:anexoId",
   requireAuth,
   requireCargo([CARGO_ASISTENTE_UATH]),
-  anexosCtrl.eliminar
+  anexosCtrl.eliminar,
 );
 
 export default router;

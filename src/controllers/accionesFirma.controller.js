@@ -28,16 +28,6 @@ export async function subirFirmado(req, res) {
         LIMIT 1;
       `;
       const pendR = await client.query(pendQ, [accionId]);
-
-      if (pendR.rowCount === 0) {
-        return {
-          status: 200,
-          body: {
-            message: "No hay firmas pendientes (posiblemente finalizada)",
-          },
-        };
-      }
-
       const firmaPend = pendR.rows[0];
 
       // 2) validar cargo (seguridad)
@@ -97,7 +87,7 @@ export async function subirFirmado(req, res) {
       `;
       const countR = await client.query(countQ, [accionId]);
       const { total_firmas, firmadas, primer_orden } = countR.rows[0];
-      
+
       const esPrimeraFirma = parseInt(firmadas) === 1;
 
       // 5) SI ES LA PRIMERA FIRMA, CAMBIAR ESTADO DE BORRADOR A FIRMADO
@@ -106,7 +96,7 @@ export async function subirFirmado(req, res) {
           `UPDATE core.accion_personal 
            SET estado = 'EN_FIRMA'
            WHERE id = $1 AND estado = 'BORRADOR';`,
-          [accionId]
+          [accionId],
         );
       }
 

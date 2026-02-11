@@ -54,7 +54,6 @@ export function uploadAnexo() {
 
   return multer({
     storage,
-    // por ahora aceptamos todo (puedes limitar luego)
     limits: { fileSize: 20 * 1024 * 1024 },
   });
 }
