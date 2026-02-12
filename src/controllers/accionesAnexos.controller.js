@@ -3,17 +3,36 @@ import path from "path";
 import { pool } from "../db.js";
 
 const baseUploads = path.resolve(process.env.UPLOADS_DIR || "uploads");
-const anexosDir = (accionId) => path.join(baseUploads, "acciones", accionId, "anexos");
+
+// Función helper para obtener ruta con código
+async function getAnexosDir(accionId) {
+  const { rows } = await pool.query(
+    `SELECT codigo_elaboracion FROM core.accion_personal WHERE id = $1`,
+    [accionId]
+  );
+  const codigo = rows[0]?.codigo_elaboracion || accionId;
+  return path.join(baseUploads, "acciones", codigo, "anexos");
+}
 
 export const listar = async (req, res) => {
   const { accionId } = req.params;
 
+  // También mostrar el código en la respuesta
   const { rows } = await pool.query(
     `
-    SELECT id, nombre_original, nombre_archivo, mime_type, tamano_bytes, ruta_relativa, created_at
-    FROM core.accion_personal_anexo
-    WHERE accion_personal_id = $1
-    ORDER BY created_at DESC
+    SELECT 
+      a.id, 
+      a.nombre_original, 
+      a.nombre_archivo, 
+      a.mime_type, 
+      a.tamano_bytes, 
+      a.ruta_relativa, 
+      a.created_at,
+      ap.codigo_elaboracion
+    FROM core.accion_personal_anexo a
+    JOIN core.accion_personal ap ON ap.id = a.accion_personal_id
+    WHERE a.accion_personal_id = $1
+    ORDER BY a.created_at DESC
     `,
     [accionId]
   );
@@ -33,14 +52,16 @@ export const subir = async (req, res) => {
     await client.query("BEGIN");
 
     const { rows: accion } = await client.query(
-      `SELECT estado FROM core.accion_personal WHERE id = $1`,
+      `SELECT estado, codigo_elaboracion FROM core.accion_personal WHERE id = $1`,
       [accionId]
     );
 
     if (!accion.length) throw new Error("Acción no existe");
-    if (accion[0].estado !== "BORRADOR") throw new Error("Solo se pueden subir anexos en BORRADOR");
+    if (accion[0].estado !== "BORRADOR") 
+      throw new Error("Solo se pueden subir anexos en BORRADOR");
 
-    const rutaRelativa = `/uploads/acciones/${accionId}/anexos/${req.file.filename}`;
+    const codigo = accion[0].codigo_elaboracion;
+    const rutaRelativa = `/uploads/acciones/${codigo}/anexos/${req.file.filename}`;
 
     const { rows } = await client.query(
       `
@@ -60,7 +81,10 @@ export const subir = async (req, res) => {
     );
 
     await client.query("COMMIT");
-    res.status(201).json(rows[0]);
+    res.status(201).json({
+      ...rows[0],
+      codigo_elaboracion: codigo 
+    });
   } catch (e) {
     await client.query("ROLLBACK");
     try { fs.unlinkSync(req.file.path); } catch (_) {}
@@ -74,7 +98,7 @@ export const eliminar = async (req, res) => {
   const { accionId, anexoId } = req.params;
 
   const { rows: accion } = await pool.query(
-    `SELECT estado FROM core.accion_personal WHERE id = $1`,
+    `SELECT estado, codigo_elaboracion FROM core.accion_personal WHERE id = $1`,
     [accionId]
   );
 
@@ -96,7 +120,8 @@ export const eliminar = async (req, res) => {
   if (!rows.length) return res.status(404).json({ message: "Anexo no encontrado" });
 
   try {
-    fs.unlinkSync(path.join(anexosDir(accionId), rows[0].nombre_archivo));
+    const anexosDir = path.join(baseUploads, "acciones", accion[0].codigo_elaboracion, "anexos");
+    fs.unlinkSync(path.join(anexosDir, rows[0].nombre_archivo));
   } catch (_) {}
 
   res.json({ ok: true });
@@ -107,17 +132,30 @@ export const descargar = async (req, res) => {
 
   const { rows } = await pool.query(
     `
-    SELECT nombre_original, nombre_archivo
-    FROM core.accion_personal_anexo
-    WHERE id = $1 AND accion_personal_id = $2
+    SELECT 
+      a.nombre_original, 
+      a.nombre_archivo,
+      ap.codigo_elaboracion
+    FROM core.accion_personal_anexo a
+    JOIN core.accion_personal ap ON ap.id = a.accion_personal_id
+    WHERE a.id = $1 AND a.accion_personal_id = $2
     `,
     [anexoId, accionId]
   );
 
   if (!rows.length) return res.status(404).json({ message: "Archivo no encontrado" });
 
-  const filePath = path.join(anexosDir(accionId), rows[0].nombre_archivo);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ message: "Archivo no existe en disco" });
+  const filePath = path.join(
+    baseUploads, 
+    "acciones", 
+    rows[0].codigo_elaboracion, 
+    "anexos", 
+    rows[0].nombre_archivo
+  );
+  
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ message: "Archivo no existe en disco" });
+  }
 
   res.download(filePath, rows[0].nombre_original);
 };

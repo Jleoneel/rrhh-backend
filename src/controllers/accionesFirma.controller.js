@@ -30,6 +30,16 @@ export async function subirFirmado(req, res) {
       const pendR = await client.query(pendQ, [accionId]);
       const firmaPend = pendR.rows[0];
 
+      if (!firmaPend) {
+        return {
+          status: 409,
+          body: {
+            message: "No hay firmas pendientes. Acción finalizada.",
+            code: "NO_PENDING_SIGNATURES",
+          },
+        };
+      }
+
       // 2) validar cargo (seguridad)
       if (firmaPend.cargo_id !== cargo_id) {
         return {

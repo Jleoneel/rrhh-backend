@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { pool } from "../db.js";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 export const generarPdfAccion = async (req, res) => {
   try {
@@ -29,8 +29,40 @@ export const generarPdfAccion = async (req, res) => {
       };
     };
 
+    // Función para limpiar texto de caracteres no soportados por WinAnsi
+    const limpiarTextoWinAnsi = (texto = "") => {
+      if (!texto) return "";
+      
+      // Reemplazar caracteres especiales con sus equivalentes aproximados
+      return texto
+        .toString()
+        .replace(/[áàäâã]/g, 'a')
+        .replace(/[éèëê]/g, 'e')
+        .replace(/[íìïî]/g, 'i')
+        .replace(/[óòöôõ]/g, 'o')
+        .replace(/[úùüû]/g, 'u')
+        .replace(/[ñ]/g, 'n')
+        .replace(/[Ñ]/g, 'N')
+        .replace(/[ÁÀÄÂÃ]/g, 'A')
+        .replace(/[ÉÈËÊ]/g, 'E')
+        .replace(/[ÍÌÏÎ]/g, 'I')
+        .replace(/[ÓÒÖÔÕ]/g, 'O')
+        .replace(/[ÚÙÜÛ]/g, 'U')
+        .replace(/[¿]/g, '')
+        .replace(/[¡]/g, '')
+        .replace(/[""]/g, '"')
+        .replace(/['']/g, "'")
+        .replace(/[—–-]/g, '-')
+        .replace(/[•]/g, '-')
+        .replace(/\n/g, ' ') // Reemplazar saltos de línea con espacios
+        .replace(/\r/g, ' ')
+        .replace(/\t/g, ' ')
+        .replace(/\s+/g, ' ') // Normalizar espacios
+        .trim();
+    };
+
     // ✅ POSTGRES QUERY (MODIFICADA PARA INCLUIR SITUACIÓN ACTUAL Y PROPUESTA)
- const result = await pool.query(
+    const result = await pool.query(
       `
       SELECT 
         ap.id,
@@ -97,8 +129,31 @@ export const generarPdfAccion = async (req, res) => {
 
     const accion = result.rows[0];
 
+    // Limpiar todos los textos que se van a mostrar en el PDF
+    const accionLimpia = {
+      ...accion,
+      nombres: limpiarTextoWinAnsi(accion.nombres),
+      cedula: limpiarTextoWinAnsi(accion.cedula),
+      tipo_accion: limpiarTextoWinAnsi(accion.tipo_accion),
+      unidad_organica: limpiarTextoWinAnsi(accion.unidad_organica),
+      denominacion_puesto: limpiarTextoWinAnsi(accion.denominacion_puesto),
+      escala_ocupacional: limpiarTextoWinAnsi(accion.escala_ocupacional),
+      lugar_trabajo: limpiarTextoWinAnsi(accion.lugar_trabajo),
+      partida_individual: limpiarTextoWinAnsi(accion.partida_individual),
+      motivo: limpiarTextoWinAnsi(accion.motivo),
+      otro_detalle: limpiarTextoWinAnsi(accion.otro_detalle),
+      codigo_elaboracion: limpiarTextoWinAnsi(accion.codigo_elaboracion),
+      unidad_organica_propuesta: limpiarTextoWinAnsi(accion.unidad_organica_propuesta),
+      denominacion_puesto_propuesta: limpiarTextoWinAnsi(accion.denominacion_puesto_propuesta),
+      escala_ocupacional_propuesta: limpiarTextoWinAnsi(accion.escala_ocupacional_propuesta),
+      lugar_trabajo_propuesta: limpiarTextoWinAnsi(accion.lugar_trabajo_propuesta),
+      partida_propuesta: limpiarTextoWinAnsi(accion.partida_propuesta),
+      proceso_institucional_propuesta: limpiarTextoWinAnsi(accion.proceso_institucional_propuesta),
+      nivel_gestion_propuesta: limpiarTextoWinAnsi(accion.nivel_gestion_propuesta),
+    };
+
     const { nombres, apellidos } = separarNombresApellidos(
-      accion.nombres
+      accionLimpia.nombres
     );
 
     // cargar plantilla
@@ -109,25 +164,28 @@ export const generarPdfAccion = async (req, res) => {
     const page = pdfDoc.getPages()[0];
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    const tipoAccion = accion.tipo_accion;
+    const tipoAccion = accionLimpia.tipo_accion;
+    
     const drawCenteredText = ({
-  page,
-  text = "",
-  centerX,
-  y,
-  font,
-  size = 9,
-}) => {
-  const textWidth = font.widthOfTextAtSize(text, size);
-  const x = centerX - textWidth / 2;
+      page,
+      text = "",
+      centerX,
+      y,
+      font,
+      size = 9,
+    }) => {
+      if (!text) return;
+      const textWidth = font.widthOfTextAtSize(text, size);
+      const x = centerX - textWidth / 2;
 
-  page.drawText(text, {
-    x,
-    y,
-    size,
-    font,
-  });
-};
+      page.drawText(text, {
+        x,
+        y,
+        size,
+        font,
+        color: rgb(0, 0, 0),
+      });
+    };
 
     const drawWrappedText = ({
       page,
@@ -139,17 +197,27 @@ export const generarPdfAccion = async (req, res) => {
       font,
       size = 9,
     }) => {
-      const words = text.split(" ");
+      if (!text) return;
+      
+      // Asegurar que el texto no tenga saltos de línea
+      const textoLimpio = text.replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/\s+/g, ' ').trim();
+      const words = textoLimpio.split(" ");
       let line = "";
       let cursorY = y;
 
       for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + " ";
+        const testLine = line + (line ? " " : "") + words[i];
         const width = font.widthOfTextAtSize(testLine, size);
 
         if (width > maxWidth && line !== "") {
-          page.drawText(line, { x, y: cursorY, size, font });
-          line = words[i] + " ";
+          page.drawText(line, { 
+            x, 
+            y: cursorY, 
+            size, 
+            font,
+            color: rgb(0, 0, 0)
+          });
+          line = words[i];
           cursorY -= lineHeight;
         } else {
           line = testLine;
@@ -157,14 +225,20 @@ export const generarPdfAccion = async (req, res) => {
       }
 
       if (line) {
-        page.drawText(line, { x, y: cursorY, size, font });
+        page.drawText(line, { 
+          x, 
+          y: cursorY, 
+          size, 
+          font,
+          color: rgb(0, 0, 0)
+        });
       }
     };
 
     const tipos = {
       "Ingreso": { x: 132.3, y: 659.8 },
       "Reingreso": { x: 132.3, y: 650 },
-      "Restitución": { x: 132.3, y: 641 },
+      "Restitucion": { x: 132.3, y: 641 },
       "Reintegro": { x: 132.3, y: 632 },
       "Ascenso": { x: 132.3, y: 622 },
       "Traslado": { x: 132.3, y: 612 },
@@ -172,15 +246,15 @@ export const generarPdfAccion = async (req, res) => {
       "Cambio Administrativo": { x: 262.8, y: 650 },
       "Intercambio Voluntario": { x: 262.8, y: 641 },
       "Licencia": { x: 262.8, y: 632 },
-      "Comisión de servicios": { x: 262.8, y: 622 },
+      "Comision de servicios": { x: 262.8, y: 622 },
       "Sanciones": { x: 262.8, y: 612 },
       "Incremento RMU": { x: 397.5, y: 659.8 },
-      "Subrogación": { x: 397.5, y: 650 },
+      "Subrogacion": { x: 397.5, y: 650 },
       "Encargo": { x: 397.5, y: 641 },
-      "Cesación de Funciones": { x: 397.5, y: 632 },
-      "Destitución": { x: 397.5, y: 622 },
+      "Cesacion de Funciones": { x: 397.5, y: 632 },
+      "Destitucion": { x: 397.5, y: 622 },
       "Vacaciones": { x: 397.5, y: 612 },
-      "Revisión Clasificación Puesto": { x: 522.3, y: 659.8 },
+      "Revision Clasificacion Puesto": { x: 522.3, y: 659.8 },
       "Otro": { x: 522.3, y: 650 },
     };
 
@@ -189,169 +263,194 @@ export const generarPdfAccion = async (req, res) => {
       false: { x: 387.2, y: 590.4 },
     };
 
-    if (tipos[tipoAccion]) {
+    // Buscar coincidencia exacta o parcial para el tipo de acción
+    const tipoAccionKey = Object.keys(tipos).find(key => 
+      tipoAccion.toLowerCase().includes(key.toLowerCase()) || 
+      key.toLowerCase().includes(tipoAccion.toLowerCase())
+    );
+
+    if (tipoAccionKey) {
       page.drawText("X", {
-        x: tipos[tipoAccion].x,
-        y: tipos[tipoAccion].y,
-        size: 5,
+        x: tipos[tipoAccionKey].x,
+        y: tipos[tipoAccionKey].y,
+        size: 7,
         font,
+        color: rgb(0, 0, 0),
       });
     }
 
     // escribir datos
-    page.drawText(nombres || "", {
+    page.drawText(limpiarTextoWinAnsi(nombres) || "", {
       x: 380,
       y: 738,
       size: 9,
       font,
+      color: rgb(0, 0, 0),
     });
 
-    page.drawText(apellidos || "", {
+    page.drawText(limpiarTextoWinAnsi(apellidos) || "", {
       x: 105,
       y: 738,
       size: 9,
       font,
+      color: rgb(0, 0, 0),
     });
 
-    page.drawText(accion.cedula, {
+    page.drawText(accionLimpia.cedula || "", {
       x: 194,
       y: 693,
       size: 8,
       font,
+      color: rgb(0, 0, 0),
     });
-    page.drawText("CÉDULA", {
+    
+    page.drawText("CEDULA", {
       x: 75,
       y: 693,
       size: 8,
       font,
+      color: rgb(0, 0, 0),
     });
 
-    page.drawText(
-      new Date(accion.fecha_elaboracion).toLocaleDateString("es-EC", {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }).replace(/\//g, "-"),
-      { x: 420, y: 755, size: 8, font }
-    );
-    page.drawText(
-      new Date(accion.rige_desde).toLocaleDateString("es-EC", {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }).replace(/\//g, "-"),
-      { x: 338, y: 693, size: 7, font }
-    );
-   if (accion.rige_hasta) {
-  page.drawText(
-    new Date(accion.rige_hasta)
-      .toLocaleDateString("es-EC", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-      .replace(/\//g, "-"),
-    { x: 460, y: 693, size: 7, font }
-  );
-}
+    // Formatear fechas de manera segura
+    const formatearFecha = (fecha) => {
+      if (!fecha) return "";
+      try {
+        return new Date(fecha)
+          .toLocaleDateString("es-EC", {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          })
+          .replace(/\//g, "-");
+      } catch (e) {
+        return "";
+      }
+    };
 
+    page.drawText(
+      formatearFecha(accion.fecha_elaboracion),
+      { x: 420, y: 755, size: 8, font, color: rgb(0, 0, 0) }
+    );
+    
+    page.drawText(
+      formatearFecha(accion.rige_desde),
+      { x: 338, y: 693, size: 7, font, color: rgb(0, 0, 0) }
+    );
+    
+    if (accion.rige_hasta) {
+      page.drawText(
+        formatearFecha(accion.rige_hasta),
+        { x: 460, y: 693, size: 7, font, color: rgb(0, 0, 0) }
+      );
+    }
 
     drawWrappedText({
       page,
-      text: accion.motivo || "",
-      x: 40,          // inicio del recuadro
-      y: 555,         // parte superior del recuadro
-      maxWidth: 500,  // ancho del recuadro
+      text: accionLimpia.motivo || "",
+      x: 40,
+      y: 555,
+      maxWidth: 500,
       font,
       size: 9,
+      lineHeight: 12,
     });
 
     drawWrappedText({
       page,
-      text: accion.otro_detalle || "",
-      x: 419,          // inicio del recuadro
-      y: 641,         // parte superior del recuadro
-      maxWidth: 125,  // ancho del recuadro
+      text: accionLimpia.otro_detalle || "",
+      x: 419,
+      y: 641,
+      maxWidth: 125,
       font,
       size: 7,
       lineHeight: 10,
     });
 
-    page.drawText(accion.codigo_elaboracion || "", {
+    page.drawText(accionLimpia.codigo_elaboracion || "", {
       x: 444,
       y: 781,
       size: 6,
       font,
+      color: rgb(0, 0, 0),
     });
 
-    //  situación actual 
-      drawCenteredText({
-  page,
-  text:"SUSTANTIVO",
-  centerX: 149.5,
-  y: 422,
-  font,
-  size: 5,
-});
+    // situación actual 
+    drawCenteredText({
+      page,
+      text: "SUSTANTIVO",
+      centerX: 149.5,
+      y: 422,
+      font,
+      size: 5,
+    });
 
-drawCenteredText({
-  page,
-  text: "SEGUNDO NIVEL DE GESTIÓN",
-  centerX: 149.5,
-  y: 402,
-  font,
-  size: 5,
-});
-    drawCenteredText ( {page,
-      text: accion.unidad_organica || "",
+    drawCenteredText({
+      page,
+      text: "SEGUNDO NIVEL DE GESTION",
+      centerX: 149.5,
+      y: 402,
+      font,
+      size: 5,
+    });
+    
+    drawCenteredText({
+      page,
+      text: accionLimpia.unidad_organica || "",
       centerX: 149.5,
       y: 382,  
       size: 5,
       font,
     });
 
-    drawCenteredText( { page,
-      text: accion.denominacion_puesto || "",
-       centerX: 149.5,
+    drawCenteredText({
+      page,
+      text: accionLimpia.denominacion_puesto || "",
+      centerX: 149.5,
       y: 343,  
       size: 5,
       font,
     });
 
-    drawCenteredText( { page,
-      text: accion.escala_ocupacional || "",
-       centerX: 149.5,  
+    drawCenteredText({
+      page,
+      text: accionLimpia.escala_ocupacional || "",
+      centerX: 149.5,  
       y: 323,  
       size: 5,
       font,
     });
 
-    drawCenteredText( { page,
-      text: accion.lugar_trabajo || "",
-       centerX: 149.5,  
+    drawCenteredText({
+      page,
+      text: accionLimpia.lugar_trabajo || "",
+      centerX: 149.5,  
       y: 363,  
       size: 5,
       font,
     });
 
-    drawCenteredText( {page,
-      text: accion.grado ? accion.grado.toString() : "",
+    drawCenteredText({
+      page,
+      text: accionLimpia.grado ? accionLimpia.grado.toString() : "",
       centerX: 149.5,
       y: 303.3,  
       size: 5,
       font,
     });
 
-    drawCenteredText( {page,
-      text: accion.rmu_puesto ? `$${accion.rmu_puesto}` : "",
+    drawCenteredText({
+      page,
+      text: accionLimpia.rmu_puesto ? `$${accionLimpia.rmu_puesto}` : "",
       centerX: 149.5,
       y: 283.5,  
       size: 5,
       font,
     });
 
-    drawCenteredText( {page,
-      text: accion.partida_individual || "",
+    drawCenteredText({
+      page,
+      text: accionLimpia.partida_individual || "",
       centerX: 149.5,
       y: 263,  
       size: 5,
@@ -359,48 +458,47 @@ drawCenteredText({
     });
 
     // Situación propuesta (solo si requiere_propuesta y existe)
-    if (accion.requiere_propuesta && accion.unidad_organica_propuesta) {
-
-  drawCenteredText({
-  page,
-  text: accion.proceso_institucional_propuesta || "",
-  centerX: 410,
-  y: 422,
-  font,
-  size: 5,
-});
-
-drawCenteredText({
-  page,
-  text: accion.nivel_gestion_propuesta || "",
-  centerX: 410,
-  y: 402,
-  font,
-  size: 5,
-});
-      
-drawCenteredText({
-  page,
-  text: accion.unidad_organica_propuesta || "",
-  centerX: 410,
-  y: 382,
-  font,
-  size: 5,
-});
-
-      drawCenteredText( {page,
-        text: accion.denominacion_puesto_propuesta || "",
+    if (accion.requiere_propuesta && accionLimpia.unidad_organica_propuesta) {
+      drawCenteredText({
+        page,
+        text: accionLimpia.proceso_institucional_propuesta || "",
         centerX: 410,
-        x: 390,  
+        y: 422,
+        font,
+        size: 5,
+      });
+
+      drawCenteredText({
+        page,
+        text: accionLimpia.nivel_gestion_propuesta || "",
+        centerX: 410,
+        y: 402,
+        font,
+        size: 5,
+      });
+          
+      drawCenteredText({
+        page,
+        text: accionLimpia.unidad_organica_propuesta || "",
+        centerX: 410,
+        y: 382,
+        font,
+        size: 5,
+      });
+
+      drawCenteredText({
+        page,
+        text: accionLimpia.denominacion_puesto_propuesta || "",
+        centerX: 410,
         y: 343,
         size: 5,
         font,
       });
 
-      drawCenteredText({page,
-        text: accion.escala_ocupacional_propuesta || "",
+      drawCenteredText({
+        page,
+        text: accionLimpia.escala_ocupacional_propuesta || "",
         centerX: 410,
-        x: 365,  
         y: 323,
         size: 5,
         font,
@@ -408,31 +506,34 @@ drawCenteredText({
 
       drawCenteredText({
         page,
-        text: accion.lugar_trabajo_propuesta || "",
+        text: accionLimpia.lugar_trabajo_propuesta || "",
         centerX: 410,
         y: 362,
         size: 5,
         font,
       });
 
-      drawCenteredText( {page,
-        text: accion.grado_propuesta ? accion.grado_propuesta.toString() : "",
+      drawCenteredText({
+        page,
+        text: accionLimpia.grado_propuesta ? accionLimpia.grado_propuesta.toString() : "",
         centerX: 410, 
         y: 303,
         size: 5,
         font,
       });
 
-      drawCenteredText( {page,
-        text: accion.rmu_propuesta ? `$${accion.rmu_propuesta}` : "",
+      drawCenteredText({
+        page,
+        text: accionLimpia.rmu_propuesta ? `$${accionLimpia.rmu_propuesta}` : "",
         centerX: 410,
         y: 283,
         size: 5,
         font,
       });
 
-      drawCenteredText( {page,
-        text: accion.partida_propuesta || "",
+      drawCenteredText({
+        page,
+        text: accionLimpia.partida_propuesta || "",
         centerX: 410,
         y: 263,
         size: 5,
@@ -446,6 +547,7 @@ drawCenteredText({
       y: presentoDeclaracionJurada.true.y,
       size: 6,
       font,
+      color: rgb(0, 0, 0),
     });
 
     page.drawText(!accion.presento_declaracion_jurada ? "X" : "", {
@@ -453,6 +555,7 @@ drawCenteredText({
       y: presentoDeclaracionJurada.false.y,
       size: 6,
       font,
+      color: rgb(0, 0, 0),
     });
 
     // exportar
@@ -467,6 +570,6 @@ drawCenteredText({
     res.send(Buffer.from(pdfFinal));
   } catch (error) {
     console.error("Error PDF:", error);
-    res.status(500).json({ message: "Error generando PDF" });
+    res.status(500).json({ message: "Error generando PDF: " + error.message });
   }
 };

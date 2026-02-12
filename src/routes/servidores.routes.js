@@ -30,9 +30,6 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
       eo.id AS escala_ocupacional_id,
       eo.nombre AS grupo_ocupacional,
 
-      p.proceso_institucional_id,
-      pi.nombre AS proceso_institucional,
-
       p.nivel_gestion_id,
       ng.nombre AS nivel_gestion
 
@@ -49,8 +46,6 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
     LEFT JOIN core.escala_ocupacional eo
       ON eo.id = p.escala_ocupacional_id
 
-    LEFT JOIN core.proceso_institucional pi
-      ON pi.id = p.proceso_institucional_id
     LEFT JOIN core.nivel_gestion ng
       ON ng.id = p.nivel_gestion_id
 
