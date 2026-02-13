@@ -41,8 +41,6 @@ export const generarPdfAccion = async (req, res) => {
         .replace(/[íìïî]/g, 'i')
         .replace(/[óòöôõ]/g, 'o')
         .replace(/[úùüû]/g, 'u')
-        .replace(/[ñ]/g, 'n')
-        .replace(/[Ñ]/g, 'N')
         .replace(/[ÁÀÄÂÃ]/g, 'A')
         .replace(/[ÉÈËÊ]/g, 'E')
         .replace(/[ÍÌÏÎ]/g, 'I')
@@ -122,6 +120,49 @@ export const generarPdfAccion = async (req, res) => {
       `,
       [id]
     );
+    const firmanteResult = await pool.query(
+  `
+  SELECT 
+    f.nombre,
+    c.nombre AS cargo
+  FROM core.firmante f
+  JOIN core.cargo c ON c.id = f.cargo_id
+  WHERE c.nombre = 'GERENTE HOSPITALARIO ENCARGADO'
+  AND c.activo = true
+  LIMIT 1;
+  `
+);    const firmanteResult2 = await pool.query(
+  `
+  SELECT 
+    f.nombre,
+    c.nombre AS cargo
+  FROM core.firmante f
+  JOIN core.cargo c ON c.id = f.cargo_id
+  WHERE c.nombre = 'RESPONSABLE DE LA UATH'
+  AND c.activo = true
+  LIMIT 1;
+  `
+);
+
+const usuarioResult = await pool.query(
+  `
+  SELECT f.nombre, c.nombre AS cargo
+  FROM core.firmante f
+  JOIN core.cargo c ON c.id = f.cargo_id
+  WHERE f.id = $1
+  LIMIT 1;
+  `,
+  [req.user.firmante_id]
+);
+
+const usuario = usuarioResult.rows[0] || {};
+
+const nombreUsuario = limpiarTextoWinAnsi(usuario.nombre || "");
+const cargoUsuario = limpiarTextoWinAnsi(usuario.cargo || "");
+
+
+
+
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Acción no encontrada" });
@@ -151,6 +192,20 @@ export const generarPdfAccion = async (req, res) => {
       proceso_institucional_propuesta: limpiarTextoWinAnsi(accion.proceso_institucional_propuesta),
       nivel_gestion_propuesta: limpiarTextoWinAnsi(accion.nivel_gestion_propuesta),
     };
+ 
+
+const firmante = firmanteResult.rows[0] || {};
+
+const nombreFirmante = limpiarTextoWinAnsi(firmante.nombre || "");
+const cargoFirmante = limpiarTextoWinAnsi(firmante.cargo || "");
+
+const firmante2 = firmanteResult2.rows[0] || {};
+
+const nombreFirmante2 = limpiarTextoWinAnsi(firmante2.nombre || "");
+const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
+
+
+
 
     const { nombres, apellidos } = separarNombresApellidos(
       accionLimpia.nombres
@@ -162,6 +217,13 @@ export const generarPdfAccion = async (req, res) => {
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const page = pdfDoc.getPages()[0];
+    
+    // Obtener o crear la segunda página
+    let page2 = pdfDoc.getPages()[1];
+    if (!page2) {
+      page2 = pdfDoc.addPage();
+    }
+    
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     const tipoAccion = accionLimpia.tipo_accion;
@@ -558,13 +620,104 @@ export const generarPdfAccion = async (req, res) => {
       color: rgb(0, 0, 0),
     });
 
+
+drawCenteredText({
+  page,
+  text: nombreFirmante || "",
+  centerX: 435,
+  y: 75,
+  font,
+  size: 6,
+});
+
+drawCenteredText({
+  page,
+  text: cargoFirmante || "",
+  centerX: 435,
+  y: 62,
+  font,
+  size: 6,
+});
+drawCenteredText({
+  page,
+  text: nombreFirmante2 || "",
+  centerX: 170,
+  y: 75,
+  font,
+  size: 6,
+});
+
+drawCenteredText({
+  page,
+  text: cargoFirmante2 || "",
+  centerX: 170,
+  y: 62,
+  font,
+  size: 6,
+});
+drawCenteredText({
+  page:page2,
+  text: nombreFirmante2 || "",
+  centerX: 310,
+  y: 488,
+  font,
+  size: 5,
+});
+
+drawCenteredText({
+  page: page2,
+  text: cargoFirmante2 || "",
+  centerX: 310,
+  y: 477,
+  font,
+  size: 5,
+});
+
+drawCenteredText({
+  page: page2,
+  text: nombreUsuario || "",
+  centerX: 135,
+  y: 488,
+  font,
+  size: 5,
+});
+
+
+drawCenteredText({
+  page: page2,
+  text: cargoUsuario || "",
+  centerX: 135,
+  y: 477,
+  font,
+  size: 5,
+});
+drawCenteredText({
+  page: page2,
+  text: nombreUsuario || "",
+  centerX: 480,
+  y: 488,
+  font,
+  size: 5,
+});
+
+
+drawCenteredText({
+  page: page2,
+  text: cargoUsuario || "",
+  centerX: 480,
+  y: 477,
+  font,
+  size: 5,
+});
+
+
     // exportar
     const pdfFinal = await pdfDoc.save();
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=accion_personal_${id}.pdf`
+      `attachment; filename=accion_personal_${accionLimpia.codigo_elaboracion}.pdf`
     );
 
     res.send(Buffer.from(pdfFinal));

@@ -237,6 +237,7 @@ router.get("/", requireAuth, async (req, res) => {
         SELECT 
           ap.id, 
           ap.numero_elaboracion,
+          ap.codigo_elaboracion,
           ap.fecha_elaboracion,
           s.numero_identificacion AS cedula,
           s.nombres AS servidor,
