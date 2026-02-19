@@ -82,12 +82,17 @@ export async function loginByCedula(req, res) {
       });
     }
 
+    // Determinar si es admin (basado en cargo_id UUID)
+const ADMIN_CARGO_ID = (process.env.ADMIN_CARGO_ID || "").trim();
+const es_admin = ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
+
+
     const token = jwt.sign(
       {
         sub: firmante.id,
         cargo_id: firmante.cargo_id,
         nombre: firmante.nombre,
-        es_admin: true,
+        es_admin,
       },
       process.env.JWT_SECRET,
       { expiresIn: "8h" },
@@ -101,7 +106,7 @@ export async function loginByCedula(req, res) {
         cedula: firmante.numero_identificacion,
         cargo_id: firmante.cargo_id,
         cargo_nombre: firmante.cargo_nombre,
-        es_admin: true,
+        es_admin,
       },
     });
   } catch (error) {
