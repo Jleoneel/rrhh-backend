@@ -83,8 +83,8 @@ export async function loginByCedula(req, res) {
     }
 
     // Determinar si es admin (basado en cargo_id UUID)
-const ADMIN_CARGO_ID = (process.env.ADMIN_CARGO_ID || "").trim();
-const es_admin = ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
+    const ADMIN_CARGO_ID = (process.env.ADMIN_CARGO_ID || "").trim();
+    const es_admin = ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
 
 
     const token = jwt.sign(
