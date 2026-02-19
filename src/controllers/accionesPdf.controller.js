@@ -87,6 +87,7 @@ export const generarPdfAccion = async (req, res) => {
         p.grado,
         p.rmu_puesto,
         p.partida_individual,
+        p.modalidad_laboral,
 
         -- Datos de situación propuesta con JOINs para obtener nombres
         up.nombre AS unidad_organica_propuesta,
@@ -189,8 +190,11 @@ const cargoUsuario = limpiarTextoWinAnsi(usuario.cargo || "");
       escala_ocupacional_propuesta: limpiarTextoWinAnsi(accion.escala_ocupacional_propuesta),
       lugar_trabajo_propuesta: limpiarTextoWinAnsi(accion.lugar_trabajo_propuesta),
       partida_propuesta: limpiarTextoWinAnsi(accion.partida_propuesta),
+      modalidad_laboral_propuesta: limpiarTextoWinAnsi( accion.modalidad_laboral_propuesta),
       proceso_institucional_propuesta: limpiarTextoWinAnsi(accion.proceso_institucional_propuesta),
       nivel_gestion_propuesta: limpiarTextoWinAnsi(accion.nivel_gestion_propuesta),
+      modalidad_laboral: limpiarTextoWinAnsi(accion.modalidad_laboral),
+
     };
  
 
@@ -510,14 +514,22 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       font,
     });
 
-    drawCenteredText({
-      page,
-      text: accionLimpia.partida_individual || "",
-      centerX: 149.5,
-      y: 263,  
-      size: 5,
-      font,
-    });
+drawCenteredText({
+  page,
+  text: `${accionLimpia.partida_individual || ""}${
+    accionLimpia.modalidad_laboral
+      ? ` (${accionLimpia.modalidad_laboral})`
+      : ""
+  }`,
+  centerX: 149.5,
+  y: 263,
+  size: 5,
+  font,
+});
+
+
+
+
 
     // Situación propuesta (solo si requiere_propuesta y existe)
     if (accion.requiere_propuesta && accionLimpia.unidad_organica_propuesta) {
@@ -593,14 +605,19 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
         font,
       });
 
-      drawCenteredText({
-        page,
-        text: accionLimpia.partida_propuesta || "",
-        centerX: 410,
-        y: 263,
-        size: 5,
-        font,
-      });
+drawCenteredText({
+  page,
+  text: `${accionLimpia.partida_propuesta || ""}${
+    accionLimpia.modalidad_laboral_propuesta
+      ? ` (${accionLimpia.modalidad_laboral_propuesta})`
+      : ""
+  }`,
+  centerX: 410,
+  y: 263,
+  size: 5,
+  font,
+});
+
     }
 
     // Declaración jurada
