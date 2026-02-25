@@ -4,6 +4,7 @@ import {
   misFirmasPendientes,
   listarFirmasAccion,
   firmaPendienteAccion,
+  eliminarFirma,
 } from "../controllers/firmas.controller.js";
 
 const router = Router();
@@ -16,5 +17,8 @@ router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);
 
 // 3) firma pendiente actual de una acción
 router.get("/acciones/:accionId/pendiente", requireAuth, firmaPendienteAccion);
+
+// 4) eliminar documento firmado de una acción
+router.delete("/acciones/:accionId/firmas/:firmaId", requireAuth, eliminarFirma);
 
 export default router;

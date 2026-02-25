@@ -2,6 +2,7 @@ import { pool } from "../db.js";
 
 export async function misFirmasPendientes(req, res) {
   const { cargo_id } = req.user;
+  
 
   const q = `
     SELECT
@@ -26,6 +27,100 @@ export async function misFirmasPendientes(req, res) {
   return res.json({ count: r.rowCount, items: r.rows });
 }
 
+export async function eliminarFirma(req, res) {
+  const { accionId, firmaId } = req.params;
+  const { firmante_id } = req.user; // 👈 debe venir del JWT
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1️⃣ Validar que el documento fue subido por este firmante
+    const qFirma = `
+      SELECT af.documento_id
+      FROM core.accion_firma af
+      JOIN core.accion_documento ad 
+        ON ad.id = af.documento_id
+      WHERE af.id = $1
+        AND af.accion_id = $2
+        AND ad.subido_por_firmante_id = $3
+    `;
+
+    const rFirma = await client.query(qFirma, [
+      firmaId,
+      accionId,
+      firmante_id
+    ]);
+
+    if (!rFirma.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({
+        error: "No tienes permisos para eliminar este documento"
+      });
+    }
+
+    const documentoId = rFirma.rows[0].documento_id;
+
+    // 2️⃣ Quitar referencia y regresar firma a PENDIENTE
+    await client.query(
+      `
+      UPDATE core.accion_firma af
+      SET documento_id = NULL,
+          estado = 'PENDIENTE',
+          firmado_en = NULL,
+          observacion = NULL
+      FROM core.accion_documento ad
+      WHERE af.id = $1
+        AND af.documento_id = ad.id
+        AND ad.subido_por_firmante_id = $2
+      `,
+      [firmaId, firmante_id]
+    );
+
+    // 3️⃣ Eliminar documento SOLO si pertenece al firmante
+    await client.query(
+      `
+      DELETE FROM core.accion_documento 
+      WHERE id = $1 
+        AND subido_por_firmante_id = $2
+      `,
+      [documentoId, firmante_id]
+    );
+
+    // 4️⃣ 🔥 Recalcular estado de la acción automáticamente
+    await client.query(
+      `
+      UPDATE core.accion_personal ap
+      SET estado = CASE
+        WHEN NOT EXISTS (
+          SELECT 1 
+          FROM core.accion_firma af
+          WHERE af.accion_id = ap.id
+            AND af.estado = 'PENDIENTE'
+        )
+        THEN 'APROBADO'
+        ELSE 'EN_FIRMA'
+      END
+      WHERE ap.id = $1
+      `,
+      [accionId]
+    );
+
+    await client.query("COMMIT");
+
+    return res.json({
+      message: "Documento eliminado correctamente y estado actualizado"
+    });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error eliminando firma:", error);
+    return res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+}
 export async function listarFirmasAccion(req, res) {
   const { accionId } = req.params;
 
@@ -85,4 +180,5 @@ export async function firmaPendienteAccion(req, res) {
 
   return res.json(r.rows[0]);
 }
+
 

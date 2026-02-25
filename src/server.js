@@ -16,6 +16,8 @@ import catalogosRoutes from "./routes/catalogos.routes.js";
 import accionesPdfRoutes from "./routes/accionesPdf.routes.js";
 import firmantesRoutes from "./routes/firmantes.routes.js";
 
+import notificacionesRoutes from "./routes/notificaciones.routes.js";
+
 
 const app = express();
 app.use(cors());
@@ -38,6 +40,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/tipos-accion", tiposAcccionRoutes);
 app.use("/api/catalogos", catalogosRoutes);
 app.use("/api", accionesPdfRoutes);
+app.use("/api/notificaciones", notificacionesRoutes);
 app.use("/api/firmantes", firmantesRoutes);
 
 const port = process.env.PORT || 3001;
