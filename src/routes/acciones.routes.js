@@ -92,6 +92,7 @@ router.post(
       rigeHasta,
       motivo,
       presentoDeclaracionJurada,
+      procesoInstitucionalId,
     } = req.body;
 
     // Validaciones mínimas
@@ -162,12 +163,12 @@ router.post(
 
       const tipo_accion_id = ta.rows[0].id;
 
-      // 3) Crear accion_personal (BORRADOR) + campos extra
+// 3) Crear accion_personal (BORRADOR) + campos extra
       const accQ = `
       INSERT INTO core.accion_personal
-        (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada)
+        (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada, proceso_institucional_id)
       VALUES
-        ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8)
+        ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8, $9)
       RETURNING id, estado, numero_elaboracion, codigo_elaboracion;
   `;
       const acc = await client.query(accQ, [
@@ -181,6 +182,7 @@ router.post(
           ? String(tipoAccionOtroDetalle).trim()
           : null,
         parseBoolean(presentoDeclaracionJurada),
+        procesoInstitucionalId || null,
       ]);
 
       // 4) Clonar firmas desde plantilla
@@ -311,6 +313,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         ap.presento_declaracion_jurada,
         ap.numero_elaboracion,
         ap.fecha_elaboracion,
+        ap.proceso_institucional_id,
         s.numero_identificacion AS cedula,
         s.nombres AS servidor_nombre,
         ta.nombre AS tipo_accion_nombre,
@@ -371,6 +374,8 @@ router.put(
       motivo,
       presentoDeclaracionJurada,
       propuesta, // opcional: { proceso_institucional_id, nivel_gestion_id, ... }
+      procesoInstitucionalId, // desde frontend (camelCase)
+
     } = req.body;
 
     if (!tipoAccionNombre || !String(tipoAccionNombre).trim()) {
@@ -436,7 +441,9 @@ router.put(
           rige_desde = $4::date,
           rige_hasta = $5::date,
           tipo_accion_otro_detalle = $6,
-          presento_declaracion_jurada = $7
+          presento_declaracion_jurada = $7,
+          proceso_institucional_id = $8
+
         WHERE id = $1
         RETURNING id, estado, numero_elaboracion;
       `;
@@ -450,6 +457,7 @@ router.put(
           ? String(tipoAccionOtroDetalle).trim()
           : null,
         parseBoolean(presentoDeclaracionJurada),
+          procesoInstitucionalId || null, //
       ]);
 
       // 4) si cambió tipo -> re-clonar firmas
@@ -469,6 +477,7 @@ router.put(
         `;
         await client.query(cloneQ, [id, newTipoId]);
       }
+      
 
       // 5) propuesta (si aplica)
       if (requierePropuesta) {

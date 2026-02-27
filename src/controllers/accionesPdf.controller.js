@@ -81,6 +81,7 @@ export const generarPdfAccion = async (req, res) => {
         ta.requiere_propuesta,
 
         -- Datos de situación actual con JOINs para obtener nombres
+        pia.nombre AS proceso_institucional_actual,
         u.nombre AS unidad_organica,
         d.nombre AS denominacion_puesto,
         e.nombre AS escala_ocupacional,
@@ -116,6 +117,9 @@ export const generarPdfAccion = async (req, res) => {
       LEFT JOIN core.escala_ocupacional ep ON ep.id = prop.escala_ocupacional_id
       LEFT JOIN core.proceso_institucional pip ON pip.id = prop.proceso_institucional_id
       LEFT JOIN core.nivel_gestion ngp ON ngp.id = prop.nivel_gestion_id
+      LEFT JOIN core.proceso_institucional pia
+  ON pia.id = ap.proceso_institucional_id
+      
       WHERE ap.id = $1
       LIMIT 1;
       `,
@@ -441,15 +445,15 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       color: rgb(0, 0, 0),
     });
 
-    // situación actual 
-    drawCenteredText({
-      page,
-      text: "SUSTANTIVO",
-      centerX: 149.5,
-      y: 422,
-      font,
-      size: 5,
-    });
+// situación actual 
+drawCenteredText({
+  page,
+  text: accionLimpia.proceso_institucional_actual || "",
+  centerX: 149.5,
+  y: 422,
+  font,
+  size: 5,
+});
 
     drawCenteredText({
       page,

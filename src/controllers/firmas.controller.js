@@ -1,4 +1,6 @@
 import { pool } from "../db.js";
+import fs from "fs";
+import path from "path";
 
 export async function misFirmasPendientes(req, res) {
   const { cargo_id } = req.user;
@@ -38,7 +40,7 @@ export async function eliminarFirma(req, res) {
 
     // 1️⃣ Validar que el documento fue subido por este firmante
     const qFirma = `
-      SELECT af.documento_id
+      SELECT ad.id AS documento_id, ad.archivo_path
       FROM core.accion_firma af
       JOIN core.accion_documento ad 
         ON ad.id = af.documento_id
@@ -60,7 +62,8 @@ export async function eliminarFirma(req, res) {
       });
     }
 
-    const documentoId = rFirma.rows[0].documento_id;
+    const documento = rFirma.rows[0];
+    const documentoId = documento.documento_id
 
     // 2️⃣ Quitar referencia y regresar firma a PENDIENTE
     await client.query(
@@ -87,22 +90,37 @@ export async function eliminarFirma(req, res) {
       `,
       [documentoId, firmante_id]
     );
+    if (documentoId && documento.archivo_path) {
+  const rutaArchivo = path.join(process.cwd(), documento.archivo_path);
+  if (fs.existsSync(rutaArchivo)) {
+    fs.unlinkSync(rutaArchivo);
+  }
+}
 
-    // 4️⃣ 🔥 Recalcular estado de la acción automáticamente
+    // 4️⃣ Recalcular estado de la acción automáticamente
     await client.query(
       `
       UPDATE core.accion_personal ap
-      SET estado = CASE
-        WHEN NOT EXISTS (
-          SELECT 1 
-          FROM core.accion_firma af
-          WHERE af.accion_id = ap.id
-            AND af.estado = 'PENDIENTE'
-        )
-        THEN 'APROBADO'
-        ELSE 'EN_FIRMA'
-      END
-      WHERE ap.id = $1
+SET estado = CASE
+  WHEN NOT EXISTS (
+    SELECT 1
+    FROM core.accion_firma af
+    WHERE af.accion_id = ap.id
+      AND af.estado = 'FIRMADO'
+  )
+  THEN 'BORRADOR'
+  
+  WHEN NOT EXISTS (
+    SELECT 1
+    FROM core.accion_firma af
+    WHERE af.accion_id = ap.id
+      AND af.estado = 'PENDIENTE'
+  )
+  THEN 'APROBADO'
+  
+  ELSE 'EN_FIRMA'
+END
+WHERE ap.id = $1;
       `,
       [accionId]
     );
@@ -139,7 +157,8 @@ export async function listarFirmasAccion(req, res) {
       f.nombre AS firmante_nombre,
       af.documento_id,
       d.archivo_path AS documento_path,
-      d.version AS documento_version
+      d.version AS documento_version,
+      d.subido_por_firmante_id
     FROM core.accion_firma af
     JOIN core.cargo c ON c.id = af.cargo_id
     LEFT JOIN core.firmante f ON f.id = af.firmante_id
