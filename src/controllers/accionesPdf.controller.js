@@ -82,6 +82,7 @@ export const generarPdfAccion = async (req, res) => {
 
         -- Datos de situación actual con JOINs para obtener nombres
         pia.nombre AS proceso_institucional_actual,
+        nga.nombre AS nivel_gestion_actual,
         u.nombre AS unidad_organica,
         d.nombre AS denominacion_puesto,
         e.nombre AS escala_ocupacional,
@@ -119,6 +120,8 @@ export const generarPdfAccion = async (req, res) => {
       LEFT JOIN core.nivel_gestion ngp ON ngp.id = prop.nivel_gestion_id
       LEFT JOIN core.proceso_institucional pia
   ON pia.id = ap.proceso_institucional_id
+  LEFT JOIN core.nivel_gestion nga
+  ON nga.id = ap.nivel_gestion_id
       
       WHERE ap.id = $1
       LIMIT 1;
@@ -457,7 +460,7 @@ drawCenteredText({
 
     drawCenteredText({
       page,
-      text: "SEGUNDO NIVEL DE GESTION",
+      text: accionLimpia.nivel_gestion_actual || "",
       centerX: 149.5,
       y: 402,
       font,

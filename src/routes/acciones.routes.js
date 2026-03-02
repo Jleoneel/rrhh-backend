@@ -93,6 +93,7 @@ router.post(
       motivo,
       presentoDeclaracionJurada,
       procesoInstitucionalId,
+      nivelGestionId,
     } = req.body;
 
     // Validaciones mínimas
@@ -166,9 +167,9 @@ router.post(
 // 3) Crear accion_personal (BORRADOR) + campos extra
       const accQ = `
       INSERT INTO core.accion_personal
-        (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada, proceso_institucional_id)
+        (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada, proceso_institucional_id,nivel_gestion_id)
       VALUES
-        ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8, $9)
+        ($1, $2, $3, $4, 'BORRADOR', $5::date, $6::date, $7, $8, $9, $10)
       RETURNING id, estado, numero_elaboracion, codigo_elaboracion;
   `;
       const acc = await client.query(accQ, [
@@ -183,6 +184,7 @@ router.post(
           : null,
         parseBoolean(presentoDeclaracionJurada),
         procesoInstitucionalId || null,
+        nivelGestionId || null,
       ]);
 
       // 4) Clonar firmas desde plantilla
@@ -314,6 +316,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         ap.numero_elaboracion,
         ap.fecha_elaboracion,
         ap.proceso_institucional_id,
+        ap.nivel_gestion_id,
         s.numero_identificacion AS cedula,
         s.nombres AS servidor_nombre,
         ta.nombre AS tipo_accion_nombre,
@@ -375,6 +378,7 @@ router.put(
       presentoDeclaracionJurada,
       propuesta, // opcional: { proceso_institucional_id, nivel_gestion_id, ... }
       procesoInstitucionalId, // desde frontend (camelCase)
+      nivelGestionId,
 
     } = req.body;
 
@@ -442,8 +446,8 @@ router.put(
           rige_hasta = $5::date,
           tipo_accion_otro_detalle = $6,
           presento_declaracion_jurada = $7,
-          proceso_institucional_id = $8
-
+          proceso_institucional_id = $8,
+          nivel_gestion_id = $9
         WHERE id = $1
         RETURNING id, estado, numero_elaboracion;
       `;
@@ -458,6 +462,7 @@ router.put(
           : null,
         parseBoolean(presentoDeclaracionJurada),
           procesoInstitucionalId || null, //
+          nivelGestionId || null,
       ]);
 
       // 4) si cambió tipo -> re-clonar firmas
