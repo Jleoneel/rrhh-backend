@@ -14,10 +14,9 @@ async function getAnexosDir(accionId) {
   return path.join(baseUploads, "acciones", codigo, "anexos");
 }
 
+//
 export const listar = async (req, res) => {
   const { accionId } = req.params;
-
-  // También mostrar el código en la respuesta
   const { rows } = await pool.query(
     `
     SELECT 
@@ -40,6 +39,7 @@ export const listar = async (req, res) => {
   res.json(rows);
 };
 
+// Subir anexo: solo si acción está en BORRADOR
 export const subir = async (req, res) => {
   const { accionId } = req.params;
 
@@ -94,6 +94,7 @@ export const subir = async (req, res) => {
   }
 };
 
+// Eliminar anexo: solo si acción está en BORRADOR
 export const eliminar = async (req, res) => {
   const { accionId, anexoId } = req.params;
 
@@ -127,6 +128,7 @@ export const eliminar = async (req, res) => {
   res.json({ ok: true });
 };
 
+// Descargar anexo: disponible para cualquier estado de la acción
 export const descargar = async (req, res) => {
   const { accionId, anexoId } = req.params;
 

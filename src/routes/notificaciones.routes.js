@@ -3,10 +3,7 @@ import { registrarNotificacion, consultarNotificacion } from "../controllers/not
 
 const router = Router();
 
-// Registrar notificación
 router.post("/", registrarNotificacion);
-
-// Consultar notificación por acción
 router.get("/:accionId", consultarNotificacion);
 
 export default router;

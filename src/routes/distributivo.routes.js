@@ -11,6 +11,7 @@ function s(v) {
   return String(v ?? "").trim();
 }
 
+// Endpoint para importar el Excel del distributivo
 router.post("/import", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, message: "Falta el archivo .xlsx" });
 

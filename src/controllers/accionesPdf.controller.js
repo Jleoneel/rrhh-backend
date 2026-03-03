@@ -15,7 +15,6 @@ export const generarPdfAccion = async (req, res) => {
           apellidos: "",
         };
       }
-
       if (partes.length === 2) {
         return {
           apellidos: partes[0],
@@ -32,34 +31,34 @@ export const generarPdfAccion = async (req, res) => {
     // Función para limpiar texto de caracteres no soportados por WinAnsi
     const limpiarTextoWinAnsi = (texto = "") => {
       if (!texto) return "";
-      
+
       // Reemplazar caracteres especiales con sus equivalentes aproximados
       return texto
         .toString()
-        .replace(/[áàäâã]/g, 'a')
-        .replace(/[éèëê]/g, 'e')
-        .replace(/[íìïî]/g, 'i')
-        .replace(/[óòöôõ]/g, 'o')
-        .replace(/[úùüû]/g, 'u')
-        .replace(/[ÁÀÄÂÃ]/g, 'A')
-        .replace(/[ÉÈËÊ]/g, 'E')
-        .replace(/[ÍÌÏÎ]/g, 'I')
-        .replace(/[ÓÒÖÔÕ]/g, 'O')
-        .replace(/[ÚÙÜÛ]/g, 'U')
-        .replace(/[¿]/g, '')
-        .replace(/[¡]/g, '')
+        .replace(/[áàäâã]/g, "a")
+        .replace(/[éèëê]/g, "e")
+        .replace(/[íìïî]/g, "i")
+        .replace(/[óòöôõ]/g, "o")
+        .replace(/[úùüû]/g, "u")
+        .replace(/[ÁÀÄÂÃ]/g, "A")
+        .replace(/[ÉÈËÊ]/g, "E")
+        .replace(/[ÍÌÏÎ]/g, "I")
+        .replace(/[ÓÒÖÔÕ]/g, "O")
+        .replace(/[ÚÙÜÛ]/g, "U")
+        .replace(/[¿]/g, "")
+        .replace(/[¡]/g, "")
         .replace(/[""]/g, '"')
         .replace(/['']/g, "'")
-        .replace(/[—–-]/g, '-')
-        .replace(/[•]/g, '-')
-        .replace(/\n/g, ' ') // Reemplazar saltos de línea con espacios
-        .replace(/\r/g, ' ')
-        .replace(/\t/g, ' ')
-        .replace(/\s+/g, ' ') // Normalizar espacios
+        .replace(/[—–-]/g, "-")
+        .replace(/[•]/g, "-")
+        .replace(/\n/g, " ")
+        .replace(/\r/g, " ")
+        .replace(/\t/g, " ")
+        .replace(/\s+/g, " ")
         .trim();
     };
 
-    // ✅ POSTGRES QUERY (MODIFICADA PARA INCLUIR SITUACIÓN ACTUAL Y PROPUESTA)
+    //QUERY (MODIFICADA PARA INCLUIR SITUACIÓN ACTUAL Y PROPUESTA)
     const result = await pool.query(
       `
       SELECT 
@@ -126,10 +125,12 @@ export const generarPdfAccion = async (req, res) => {
       WHERE ap.id = $1
       LIMIT 1;
       `,
-      [id]
+      [id],
     );
+
+    // Consultar firmantes para los cargos específicos
     const firmanteResult = await pool.query(
-  `
+      `
   SELECT 
     f.nombre,
     c.nombre AS cargo
@@ -138,9 +139,10 @@ export const generarPdfAccion = async (req, res) => {
   WHERE c.nombre = 'GERENTE HOSPITALARIO ENCARGADO'
   AND c.activo = true
   LIMIT 1;
-  `
-);    const firmanteResult2 = await pool.query(
-  `
+  `,
+    );
+    const firmanteResult2 = await pool.query(
+      `
   SELECT 
     f.nombre,
     c.nombre AS cargo
@@ -149,28 +151,25 @@ export const generarPdfAccion = async (req, res) => {
   WHERE c.nombre = 'RESPONSABLE DE LA UATH'
   AND c.activo = true
   LIMIT 1;
-  `
-);
+  `,
+    );
 
-const usuarioResult = await pool.query(
-  `
+    // Consultar datos del usuario autenticado para mostrar en el PDF
+    const usuarioResult = await pool.query(
+      `
   SELECT f.nombre, c.nombre AS cargo
   FROM core.firmante f
   JOIN core.cargo c ON c.id = f.cargo_id
   WHERE f.id = $1
   LIMIT 1;
   `,
-  [req.user.firmante_id]
-);
+      [req.user.firmante_id],
+    );
 
-const usuario = usuarioResult.rows[0] || {};
-
-const nombreUsuario = limpiarTextoWinAnsi(usuario.nombre || "");
-const cargoUsuario = limpiarTextoWinAnsi(usuario.cargo || "");
-
-
-
-
+    // Obtener datos del usuario autenticado
+    const usuario = usuarioResult.rows[0] || {};
+    const nombreUsuario = limpiarTextoWinAnsi(usuario.nombre || "");
+    const cargoUsuario = limpiarTextoWinAnsi(usuario.cargo || "");
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Acción no encontrada" });
@@ -192,34 +191,43 @@ const cargoUsuario = limpiarTextoWinAnsi(usuario.cargo || "");
       motivo: limpiarTextoWinAnsi(accion.motivo),
       otro_detalle: limpiarTextoWinAnsi(accion.otro_detalle),
       codigo_elaboracion: limpiarTextoWinAnsi(accion.codigo_elaboracion),
-      unidad_organica_propuesta: limpiarTextoWinAnsi(accion.unidad_organica_propuesta),
-      denominacion_puesto_propuesta: limpiarTextoWinAnsi(accion.denominacion_puesto_propuesta),
-      escala_ocupacional_propuesta: limpiarTextoWinAnsi(accion.escala_ocupacional_propuesta),
-      lugar_trabajo_propuesta: limpiarTextoWinAnsi(accion.lugar_trabajo_propuesta),
+      unidad_organica_propuesta: limpiarTextoWinAnsi(
+        accion.unidad_organica_propuesta,
+      ),
+      denominacion_puesto_propuesta: limpiarTextoWinAnsi(
+        accion.denominacion_puesto_propuesta,
+      ),
+      escala_ocupacional_propuesta: limpiarTextoWinAnsi(
+        accion.escala_ocupacional_propuesta,
+      ),
+      lugar_trabajo_propuesta: limpiarTextoWinAnsi(
+        accion.lugar_trabajo_propuesta,
+      ),
       partida_propuesta: limpiarTextoWinAnsi(accion.partida_propuesta),
-      modalidad_laboral_propuesta: limpiarTextoWinAnsi( accion.modalidad_laboral_propuesta),
-      proceso_institucional_propuesta: limpiarTextoWinAnsi(accion.proceso_institucional_propuesta),
-      nivel_gestion_propuesta: limpiarTextoWinAnsi(accion.nivel_gestion_propuesta),
+      modalidad_laboral_propuesta: limpiarTextoWinAnsi(
+        accion.modalidad_laboral_propuesta,
+      ),
+      proceso_institucional_propuesta: limpiarTextoWinAnsi(
+        accion.proceso_institucional_propuesta,
+      ),
+      nivel_gestion_propuesta: limpiarTextoWinAnsi(
+        accion.nivel_gestion_propuesta,
+      ),
       modalidad_laboral: limpiarTextoWinAnsi(accion.modalidad_laboral),
-
     };
- 
 
-const firmante = firmanteResult.rows[0] || {};
+    const firmante = firmanteResult.rows[0] || {};
 
-const nombreFirmante = limpiarTextoWinAnsi(firmante.nombre || "");
-const cargoFirmante = limpiarTextoWinAnsi(firmante.cargo || "");
+    const nombreFirmante = limpiarTextoWinAnsi(firmante.nombre || "");
+    const cargoFirmante = limpiarTextoWinAnsi(firmante.cargo || "");
 
-const firmante2 = firmanteResult2.rows[0] || {};
+    const firmante2 = firmanteResult2.rows[0] || {};
 
-const nombreFirmante2 = limpiarTextoWinAnsi(firmante2.nombre || "");
-const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
-
-
-
+    const nombreFirmante2 = limpiarTextoWinAnsi(firmante2.nombre || "");
+    const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
 
     const { nombres, apellidos } = separarNombresApellidos(
-      accionLimpia.nombres
+      accionLimpia.nombres,
     );
 
     // cargar plantilla
@@ -228,17 +236,17 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const page = pdfDoc.getPages()[0];
-    
+
     // Obtener o crear la segunda página
     let page2 = pdfDoc.getPages()[1];
     if (!page2) {
       page2 = pdfDoc.addPage();
     }
-    
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+    // Configurar fuente
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const tipoAccion = accionLimpia.tipo_accion;
-    
+
     const drawCenteredText = ({
       page,
       text = "",
@@ -271,9 +279,13 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       size = 9,
     }) => {
       if (!text) return;
-      
+
       // Asegurar que el texto no tenga saltos de línea
-      const textoLimpio = text.replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/\s+/g, ' ').trim();
+      const textoLimpio = text
+        .replace(/\n/g, " ")
+        .replace(/\r/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
       const words = textoLimpio.split(" ");
       let line = "";
       let cursorY = y;
@@ -283,12 +295,12 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
         const width = font.widthOfTextAtSize(testLine, size);
 
         if (width > maxWidth && line !== "") {
-          page.drawText(line, { 
-            x, 
-            y: cursorY, 
-            size, 
+          page.drawText(line, {
+            x,
+            y: cursorY,
+            size,
             font,
-            color: rgb(0, 0, 0)
+            color: rgb(0, 0, 0),
           });
           line = words[i];
           cursorY -= lineHeight;
@@ -298,37 +310,37 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       }
 
       if (line) {
-        page.drawText(line, { 
-          x, 
-          y: cursorY, 
-          size, 
+        page.drawText(line, {
+          x,
+          y: cursorY,
+          size,
           font,
-          color: rgb(0, 0, 0)
+          color: rgb(0, 0, 0),
         });
       }
     };
 
     const tipos = {
-      "Ingreso": { x: 132.3, y: 659.8 },
-      "Reingreso": { x: 132.3, y: 650 },
-      "Restitucion": { x: 132.3, y: 641 },
-      "Reintegro": { x: 132.3, y: 632 },
-      "Ascenso": { x: 132.3, y: 622 },
-      "Traslado": { x: 132.3, y: 612 },
-      "Traspaso": { x: 262.8, y: 659.8 },
+      Ingreso: { x: 132.3, y: 659.8 },
+      Reingreso: { x: 132.3, y: 650 },
+      Restitucion: { x: 132.3, y: 641 },
+      Reintegro: { x: 132.3, y: 632 },
+      Ascenso: { x: 132.3, y: 622 },
+      Traslado: { x: 132.3, y: 612 },
+      Traspaso: { x: 262.8, y: 659.8 },
       "Cambio Administrativo": { x: 262.8, y: 650 },
       "Intercambio Voluntario": { x: 262.8, y: 641 },
-      "Licencia": { x: 262.8, y: 632 },
+      Licencia: { x: 262.8, y: 632 },
       "Comision de servicios": { x: 262.8, y: 622 },
-      "Sanciones": { x: 262.8, y: 612 },
+      Sanciones: { x: 262.8, y: 612 },
       "Incremento RMU": { x: 397.5, y: 659.8 },
-      "Subrogacion": { x: 397.5, y: 650 },
-      "Encargo": { x: 397.5, y: 641 },
+      Subrogacion: { x: 397.5, y: 650 },
+      Encargo: { x: 397.5, y: 641 },
       "Cesacion de Funciones": { x: 397.5, y: 632 },
-      "Destitucion": { x: 397.5, y: 622 },
-      "Vacaciones": { x: 397.5, y: 612 },
+      Destitucion: { x: 397.5, y: 622 },
+      Vacaciones: { x: 397.5, y: 612 },
       "Revision Clasificacion Puesto": { x: 522.3, y: 659.8 },
-      "Otro": { x: 522.3, y: 650 },
+      Otro: { x: 522.3, y: 650 },
     };
 
     const presentoDeclaracionJurada = {
@@ -337,9 +349,10 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
     };
 
     // Buscar coincidencia exacta o parcial para el tipo de acción
-    const tipoAccionKey = Object.keys(tipos).find(key => 
-      tipoAccion.toLowerCase().includes(key.toLowerCase()) || 
-      key.toLowerCase().includes(tipoAccion.toLowerCase())
+    const tipoAccionKey = Object.keys(tipos).find(
+      (key) =>
+        tipoAccion.toLowerCase().includes(key.toLowerCase()) ||
+        key.toLowerCase().includes(tipoAccion.toLowerCase()),
     );
 
     if (tipoAccionKey) {
@@ -376,7 +389,7 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       font,
       color: rgb(0, 0, 0),
     });
-    
+
     page.drawText("CEDULA", {
       x: 75,
       y: 693,
@@ -391,9 +404,9 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       try {
         return new Date(fecha)
           .toLocaleDateString("es-EC", {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
           })
           .replace(/\//g, "-");
       } catch (e) {
@@ -401,21 +414,30 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       }
     };
 
-    page.drawText(
-      formatearFecha(accion.fecha_elaboracion),
-      { x: 420, y: 755, size: 8, font, color: rgb(0, 0, 0) }
-    );
-    
-    page.drawText(
-      formatearFecha(accion.rige_desde),
-      { x: 338, y: 693, size: 7, font, color: rgb(0, 0, 0) }
-    );
-    
+    page.drawText(formatearFecha(accion.fecha_elaboracion), {
+      x: 420,
+      y: 755,
+      size: 8,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
+    page.drawText(formatearFecha(accion.rige_desde), {
+      x: 338,
+      y: 693,
+      size: 7,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
     if (accion.rige_hasta) {
-      page.drawText(
-        formatearFecha(accion.rige_hasta),
-        { x: 460, y: 693, size: 7, font, color: rgb(0, 0, 0) }
-      );
+      page.drawText(formatearFecha(accion.rige_hasta), {
+        x: 460,
+        y: 693,
+        size: 7,
+        font,
+        color: rgb(0, 0, 0),
+      });
     }
 
     drawWrappedText({
@@ -448,15 +470,15 @@ const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
       color: rgb(0, 0, 0),
     });
 
-// situación actual 
-drawCenteredText({
-  page,
-  text: accionLimpia.proceso_institucional_actual || "",
-  centerX: 149.5,
-  y: 422,
-  font,
-  size: 5,
-});
+    // situación actual
+    drawCenteredText({
+      page,
+      text: accionLimpia.proceso_institucional_actual || "",
+      centerX: 149.5,
+      y: 422,
+      font,
+      size: 5,
+    });
 
     drawCenteredText({
       page,
@@ -466,12 +488,12 @@ drawCenteredText({
       font,
       size: 5,
     });
-    
+
     drawCenteredText({
       page,
       text: accionLimpia.unidad_organica || "",
       centerX: 149.5,
-      y: 382,  
+      y: 382,
       size: 5,
       font,
     });
@@ -480,7 +502,7 @@ drawCenteredText({
       page,
       text: accionLimpia.denominacion_puesto || "",
       centerX: 149.5,
-      y: 343,  
+      y: 343,
       size: 5,
       font,
     });
@@ -488,8 +510,8 @@ drawCenteredText({
     drawCenteredText({
       page,
       text: accionLimpia.escala_ocupacional || "",
-      centerX: 149.5,  
-      y: 323,  
+      centerX: 149.5,
+      y: 323,
       size: 5,
       font,
     });
@@ -497,8 +519,8 @@ drawCenteredText({
     drawCenteredText({
       page,
       text: accionLimpia.lugar_trabajo || "",
-      centerX: 149.5,  
-      y: 363,  
+      centerX: 149.5,
+      y: 363,
       size: 5,
       font,
     });
@@ -507,7 +529,7 @@ drawCenteredText({
       page,
       text: accionLimpia.grado ? accionLimpia.grado.toString() : "",
       centerX: 149.5,
-      y: 303.3,  
+      y: 303.3,
       size: 5,
       font,
     });
@@ -516,27 +538,23 @@ drawCenteredText({
       page,
       text: accionLimpia.rmu_puesto ? `$${accionLimpia.rmu_puesto}` : "",
       centerX: 149.5,
-      y: 283.5,  
+      y: 283.5,
       size: 5,
       font,
     });
 
-drawCenteredText({
-  page,
-  text: `${accionLimpia.partida_individual || ""}${
-    accionLimpia.modalidad_laboral
-      ? ` (${accionLimpia.modalidad_laboral})`
-      : ""
-  }`,
-  centerX: 149.5,
-  y: 263,
-  size: 5,
-  font,
-});
-
-
-
-
+    drawCenteredText({
+      page,
+      text: `${accionLimpia.partida_individual || ""}${
+        accionLimpia.modalidad_laboral
+          ? ` (${accionLimpia.modalidad_laboral})`
+          : ""
+      }`,
+      centerX: 149.5,
+      y: 263,
+      size: 5,
+      font,
+    });
 
     // Situación propuesta (solo si requiere_propuesta y existe)
     if (accion.requiere_propuesta && accionLimpia.unidad_organica_propuesta) {
@@ -557,7 +575,7 @@ drawCenteredText({
         font,
         size: 5,
       });
-          
+
       drawCenteredText({
         page,
         text: accionLimpia.unidad_organica_propuesta || "",
@@ -596,8 +614,10 @@ drawCenteredText({
 
       drawCenteredText({
         page,
-        text: accionLimpia.grado_propuesta ? accionLimpia.grado_propuesta.toString() : "",
-        centerX: 410, 
+        text: accionLimpia.grado_propuesta
+          ? accionLimpia.grado_propuesta.toString()
+          : "",
+        centerX: 410,
         y: 303,
         size: 5,
         font,
@@ -605,26 +625,27 @@ drawCenteredText({
 
       drawCenteredText({
         page,
-        text: accionLimpia.rmu_propuesta ? `$${accionLimpia.rmu_propuesta}` : "",
+        text: accionLimpia.rmu_propuesta
+          ? `$${accionLimpia.rmu_propuesta}`
+          : "",
         centerX: 410,
         y: 283,
         size: 5,
         font,
       });
 
-drawCenteredText({
-  page,
-  text: `${accionLimpia.partida_propuesta || ""}${
-    accionLimpia.modalidad_laboral_propuesta
-      ? ` (${accionLimpia.modalidad_laboral_propuesta})`
-      : ""
-  }`,
-  centerX: 410,
-  y: 263,
-  size: 5,
-  font,
-});
-
+      drawCenteredText({
+        page,
+        text: `${accionLimpia.partida_propuesta || ""}${
+          accionLimpia.modalidad_laboral_propuesta
+            ? ` (${accionLimpia.modalidad_laboral_propuesta})`
+            : ""
+        }`,
+        centerX: 410,
+        y: 263,
+        size: 5,
+        font,
+      });
     }
 
     // Declaración jurada
@@ -644,96 +665,92 @@ drawCenteredText({
       color: rgb(0, 0, 0),
     });
 
+    drawCenteredText({
+      page,
+      text: nombreFirmante || "",
+      centerX: 435,
+      y: 75,
+      font,
+      size: 6,
+    });
 
-drawCenteredText({
-  page,
-  text: nombreFirmante || "",
-  centerX: 435,
-  y: 75,
-  font,
-  size: 6,
-});
+    drawCenteredText({
+      page,
+      text: cargoFirmante || "",
+      centerX: 435,
+      y: 62,
+      font,
+      size: 6,
+    });
+    drawCenteredText({
+      page,
+      text: nombreFirmante2 || "",
+      centerX: 170,
+      y: 75,
+      font,
+      size: 6,
+    });
 
-drawCenteredText({
-  page,
-  text: cargoFirmante || "",
-  centerX: 435,
-  y: 62,
-  font,
-  size: 6,
-});
-drawCenteredText({
-  page,
-  text: nombreFirmante2 || "",
-  centerX: 170,
-  y: 75,
-  font,
-  size: 6,
-});
+    drawCenteredText({
+      page,
+      text: cargoFirmante2 || "",
+      centerX: 170,
+      y: 62,
+      font,
+      size: 6,
+    });
+    drawCenteredText({
+      page: page2,
+      text: nombreFirmante2 || "",
+      centerX: 310,
+      y: 488,
+      font,
+      size: 5,
+    });
 
-drawCenteredText({
-  page,
-  text: cargoFirmante2 || "",
-  centerX: 170,
-  y: 62,
-  font,
-  size: 6,
-});
-drawCenteredText({
-  page:page2,
-  text: nombreFirmante2 || "",
-  centerX: 310,
-  y: 488,
-  font,
-  size: 5,
-});
+    drawCenteredText({
+      page: page2,
+      text: cargoFirmante2 || "",
+      centerX: 310,
+      y: 477,
+      font,
+      size: 5,
+    });
 
-drawCenteredText({
-  page: page2,
-  text: cargoFirmante2 || "",
-  centerX: 310,
-  y: 477,
-  font,
-  size: 5,
-});
+    drawCenteredText({
+      page: page2,
+      text: nombreUsuario || "",
+      centerX: 135,
+      y: 488,
+      font,
+      size: 5,
+    });
 
-drawCenteredText({
-  page: page2,
-  text: nombreUsuario || "",
-  centerX: 135,
-  y: 488,
-  font,
-  size: 5,
-});
+    drawCenteredText({
+      page: page2,
+      text: cargoUsuario || "",
+      centerX: 135,
+      y: 477,
+      font,
+      size: 5,
+    });
+    drawCenteredText({
+      page: page2,
+      text: nombreUsuario || "",
+      centerX: 480,
+      y: 488,
+      font,
+      size: 5,
+    });
 
-
-drawCenteredText({
-  page: page2,
-  text: cargoUsuario || "",
-  centerX: 135,
-  y: 477,
-  font,
-  size: 5,
-});
-drawCenteredText({
-  page: page2,
-  text: nombreUsuario || "",
-  centerX: 480,
-  y: 488,
-  font,
-  size: 5,
-});
-
-
-drawCenteredText({
-  page: page2,
-  text: cargoUsuario || "",
-  centerX: 480,
-  y: 477,
-  font,
-  size: 5,
-});
-
+    drawCenteredText({
+      page: page2,
+      text: cargoUsuario || "",
+      centerX: 480,
+      y: 477,
+      font,
+      size: 5,
+    });
 
     // exportar
     const pdfFinal = await pdfDoc.save();
@@ -741,7 +758,7 @@ drawCenteredText({
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=accion_personal_${accionLimpia.codigo_elaboracion}.pdf`
+      `attachment; filename=accion_personal_${accionLimpia.codigo_elaboracion}.pdf`,
     );
 
     res.send(Buffer.from(pdfFinal));

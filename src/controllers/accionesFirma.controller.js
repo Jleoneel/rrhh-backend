@@ -97,7 +97,6 @@ export async function subirFirmado(req, res) {
       `;
       const countR = await client.query(countQ, [accionId]);
       const { total_firmas, firmadas, primer_orden } = countR.rows[0];
-
       const esPrimeraFirma = parseInt(firmadas) === 1;
 
       // 5) SI ES LA PRIMERA FIRMA, CAMBIAR ESTADO DE BORRADOR A FIRMADO
@@ -123,7 +122,6 @@ export async function subirFirmado(req, res) {
           [accionId],
         );
       }
-
       return {
         status: 200,
         body: {

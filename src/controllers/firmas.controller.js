@@ -2,9 +2,9 @@ import { pool } from "../db.js";
 import fs from "fs";
 import path from "path";
 
+// Controlador para gestionar las firmas de las acciones personales
 export async function misFirmasPendientes(req, res) {
   const { cargo_id } = req.user;
-  
 
   const q = `
     SELECT
@@ -29,6 +29,7 @@ export async function misFirmasPendientes(req, res) {
   return res.json({ count: r.rowCount, items: r.rows });
 }
 
+// Controlador para eliminar una firma (solo si el documento fue subido por el mismo firmante)
 export async function eliminarFirma(req, res) {
   const { accionId, firmaId } = req.params;
   const { firmante_id } = req.user; // 👈 debe venir del JWT
@@ -38,7 +39,7 @@ export async function eliminarFirma(req, res) {
   try {
     await client.query("BEGIN");
 
-    // 1️⃣ Validar que el documento fue subido por este firmante
+    //Validar que el documento fue subido por este firmante
     const qFirma = `
       SELECT ad.id AS documento_id, ad.archivo_path
       FROM core.accion_firma af
@@ -65,7 +66,7 @@ export async function eliminarFirma(req, res) {
     const documento = rFirma.rows[0];
     const documentoId = documento.documento_id
 
-    // 2️⃣ Quitar referencia y regresar firma a PENDIENTE
+    //Quitar referencia y regresar firma a PENDIENTE
     await client.query(
       `
       UPDATE core.accion_firma af
@@ -81,7 +82,7 @@ export async function eliminarFirma(req, res) {
       [firmaId, firmante_id]
     );
 
-    // 3️⃣ Eliminar documento SOLO si pertenece al firmante
+    //Eliminar documento SOLO si pertenece al firmante
     await client.query(
       `
       DELETE FROM core.accion_documento 
@@ -97,7 +98,7 @@ export async function eliminarFirma(req, res) {
   }
 }
 
-    // 4️⃣ Recalcular estado de la acción automáticamente
+    //Recalcular estado de la acción automáticamente
     await client.query(
       `
       UPDATE core.accion_personal ap
@@ -139,6 +140,8 @@ WHERE ap.id = $1;
     client.release();
   }
 }
+
+// Controlador para listar todas las firmas de una acción personal, con detalles de documento y firmante
 export async function listarFirmasAccion(req, res) {
   const { accionId } = req.params;
 
@@ -171,6 +174,7 @@ export async function listarFirmasAccion(req, res) {
   return res.json({ count: r.rowCount, items: r.rows });
 }
 
+// Controlador para obtener la siguiente firma pendiente de una acción personal (para mostrar en el detalle de la acción)
 export async function firmaPendienteAccion(req, res) {
   const { accionId } = req.params;
 

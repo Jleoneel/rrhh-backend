@@ -8,17 +8,9 @@ import {
 } from "../controllers/firmas.controller.js";
 
 const router = Router();
-
-// 1) firmas pendientes del usuario logueado (por cargo)
 router.get("/pendientes", requireAuth, misFirmasPendientes);
-
-// 2) firmas de una acción (timeline completo)
 router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);
-
-// 3) firma pendiente actual de una acción
 router.get("/acciones/:accionId/pendiente", requireAuth, firmaPendienteAccion);
-
-// 4) eliminar documento firmado de una acción
 router.delete("/acciones/:accionId/firmas/:firmaId", requireAuth, eliminarFirma);
 
 export default router;

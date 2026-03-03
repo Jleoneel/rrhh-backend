@@ -1,10 +1,7 @@
 import bcrypt from "bcrypt";
 import { pool } from "../db.js";
 
-/**
- * Obtiene el cargo_id del cargo "ASISTENTE DE LA UATH"
- * (evita hardcodear UUID en el frontend/backend)
- */
+// Controladores para gestión de firmantes UATH
 async function getCargoUathId() {
   const q = `
     SELECT id
@@ -20,6 +17,7 @@ async function getCargoUathId() {
   return r.rows[0].id;
 }
 
+// Listar firmantes con cargo de UATH
 export async function listFirmantesUath(req, res) {
   try {
     const cargoUathId = await getCargoUathId();
@@ -46,6 +44,7 @@ export async function listFirmantesUath(req, res) {
   }
 }
 
+// Crear nuevo firmante con cargo de UATH
 export async function createFirmanteUath(req, res) {
   const { cedula, nombre, password } = req.body;
 
@@ -106,6 +105,7 @@ export async function createFirmanteUath(req, res) {
   }
 }
 
+// Actualizar nombre y/o estado activo de un firmante UATH
 export async function updateFirmante(req, res) {
   const { id } = req.params;
   const { nombre, activo } = req.body;
@@ -141,6 +141,7 @@ export async function updateFirmante(req, res) {
   }
 }
 
+// Resetear contraseña de un firmante UATH
 export async function resetPasswordFirmante(req, res) {
   const { id } = req.params;
   const { password } = req.body;

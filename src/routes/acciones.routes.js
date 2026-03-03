@@ -12,6 +12,7 @@ const upload = uploadFirma();
 const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
 const uploadAnx = uploadAnexo();
 
+// Función para interpretar valores booleanos de forma flexible
 const parseBoolean = (value) => {
   if (value === undefined || value === null) return false;
   if (typeof value === "boolean") return value;
@@ -41,6 +42,7 @@ const parseBoolean = (value) => {
   return Boolean(value);
 };
 
+// Middleware para verificar si el usuario puede firmar el paso pendiente
 export async function requirePuedeFirmarPaso(req, res, next) {
   const { accionId } = req.params;
   const { cargo_id } = req.user;
@@ -376,8 +378,8 @@ router.put(
       rigeHasta,
       motivo,
       presentoDeclaracionJurada,
-      propuesta, // opcional: { proceso_institucional_id, nivel_gestion_id, ... }
-      procesoInstitucionalId, // desde frontend (camelCase)
+      propuesta,
+      procesoInstitucionalId,
       nivelGestionId,
 
     } = req.body;
@@ -483,7 +485,6 @@ router.put(
         await client.query(cloneQ, [id, newTipoId]);
       }
       
-
       // 5) propuesta (si aplica)
       if (requierePropuesta) {
         const p = propuesta || {};

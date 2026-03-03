@@ -3,7 +3,6 @@ import { pool } from "../db.js";
 // Crear o actualizar notificación
 export async function registrarNotificacion(req, res) {
   const { id, accion_id, fecha, hora, medio, nombre, puesto } = req.body;
-
   try {
     if (id) {
       const qUpdate = `

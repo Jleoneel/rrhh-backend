@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { pool } from "../db.js";
 
+// Controlador para login por cédula y contraseña
 export async function loginByCedula(req, res) {
   const { cedula, password } = req.body;
 
@@ -50,10 +51,7 @@ export async function loginByCedula(req, res) {
     // CONDICION DE SEGURIDAD: bcrypt.compare puede fallar con hash inválido
     let passwordValida = false;
     try {
-      // Asegurarse de que el hash tenga el formato correcto
       const hash = firmante.password_hash.trim();
-
-      // Verificar formato básico de bcrypt (debe empezar con $2a$, $2b$, etc.)
       if (
         !hash.startsWith("$2a$") &&
         !hash.startsWith("$2b$") &&
@@ -85,7 +83,6 @@ export async function loginByCedula(req, res) {
     // Determinar si es admin (basado en cargo_id UUID)
     const ADMIN_CARGO_ID = (process.env.ADMIN_CARGO_ID || "").trim();
     const es_admin = ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
-
 
     const token = jwt.sign(
       {
