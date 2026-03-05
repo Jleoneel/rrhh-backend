@@ -1,0 +1,56 @@
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+/bin/sh: 1: /usr/bin/node: not found
+[dotenv@17.2.3] injecting env (5) from Escritorio/Dev/HPVCB/rrhh-backend/.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+CWD: /home/janersoon
+DATABASE_URL: OK
+uploadsBase: /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads
+Candidatos a purga: 4
+-> 741566e6-bbf2-42f7-85df-900459091a2c EXISTS /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads/acciones/UATH-HPVCB-2026-003/firmas/firmado_2026-03-05T02-01-14-544Z.pdf
+-> e06a2243-9144-4b73-a66c-2f261bc0e33c EXISTS /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads/acciones/UATH-HPVCB-2026-003/firmas/firmado_2026-03-05T02-01-32-679Z.pdf
+-> 824837fc-0b41-4f85-bd93-320e4776f078 EXISTS /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads/acciones/UATH-HPVCB-2026-003/firmas/firmado_2026-03-05T02-01-50-372Z.pdf
+-> 15cead85-3a7a-4070-8087-b32a5a5190e3 EXISTS /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads/acciones/UATH-HPVCB-2026-003/firmas/firmado_2026-03-05T02-02-15-617Z.pdf
+Firmas desvinculadas: 4
+OK. Físicos: 4 | BD: 4 | Firmas desvinculadas: 4
+[dotenv@17.2.3] injecting env (5) from Escritorio/Dev/HPVCB/rrhh-backend/.env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+CWD: /home/janersoon
+DATABASE_URL: OK
+uploadsBase: /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads
+Candidatos a purga: 0
+Nada que purgar.
+[dotenv@17.2.3] injecting env (5) from Escritorio/Dev/HPVCB/rrhh-backend/.env -- tip: ⚙️  enable debug logging with { debug: true }
+CWD: /home/janersoon
+DATABASE_URL: OK
+uploadsBase: /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads
+Candidatos a purga: 0
+Nada que purgar.
+[dotenv@17.2.3] injecting env (5) from Escritorio/Dev/HPVCB/rrhh-backend/.env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+CWD: /home/janersoon
+DATABASE_URL: OK
+uploadsBase: /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads
+Candidatos a purga: 0
+Nada que purgar.
+[dotenv@17.2.3] injecting env (5) from Escritorio/Dev/HPVCB/rrhh-backend/.env -- tip: ✅ audit secrets and track compliance: https://dotenvx.com/ops
+CWD: /home/janersoon
+DATABASE_URL: OK
+uploadsBase: /home/janersoon/Escritorio/Dev/HPVCB/rrhh-backend/uploads
+Candidatos a purga: 0
+Nada que purgar.

@@ -763,7 +763,6 @@ export const generarPdfAccion = async (req, res) => {
 
     res.send(Buffer.from(pdfFinal));
   } catch (error) {
-    console.error("Error PDF:", error);
     res.status(500).json({ message: "Error generando PDF: " + error.message });
   }
 };

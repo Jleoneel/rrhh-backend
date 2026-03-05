@@ -574,6 +574,21 @@ router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
   res.json(rows[0]);
 });
 
+// // Wrapper para capturar errores de multer y devolver JSON (no HTML / 500 silencioso)
+// const uploadFirmadoMiddleware = (req, res, next) => {
+//   const up = uploadFirma().single("file");
+//   up(req, res, (err) => {
+//     if (err) {
+//       // MulterError (tamaño), mimetype, destino, etc.
+//       return res.status(400).json({
+//         message: "Error subiendo archivo",
+//         error: err.message,
+//       });
+//     }
+//     next();
+//   });
+// };
+
 // POST /api/acciones/:accionId/firmas/subir
 router.post(
   "/:accionId/firmas/subir",

@@ -17,9 +17,13 @@ import accionesPdfRoutes from "./routes/accionesPdf.routes.js";
 import firmantesRoutes from "./routes/firmantes.routes.js";
 import notificacionesRoutes from "./routes/notificaciones.routes.js";
 import distributivoRoutes from "./routes/distributivo.routes.js";
+import firmaNotificacionRoutes from "./routes/firmaNotificacion.routes.js";
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  credentials: true,
+}));
 app.use(express.json());
 
 // Crear carpeta uploads si no existe
@@ -42,6 +46,8 @@ app.use("/api", accionesPdfRoutes);
 app.use("/api/notificaciones", notificacionesRoutes);
 app.use("/api/firmantes", firmantesRoutes);
 app.use("/api/distributivo", distributivoRoutes);
+app.use("/api/firma-notificaciones", firmaNotificacionRoutes);
+
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));

@@ -1,8 +1,15 @@
 import pg from "pg";
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
 
 const { Pool } = pg;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Carga el .env desde la raíz del proyecto (un nivel arriba de /src)
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
