@@ -1,4 +1,3 @@
-// Mapa: cargo_id → array de respuestas SSE activas
 const connections = new Map();
 
 export function addConnection(cargoId, res) {

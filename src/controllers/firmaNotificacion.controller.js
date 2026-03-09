@@ -1,7 +1,6 @@
 import { pool } from "../db.js";
 import { addConnection, removeConnection } from "../utils/sseManager.js";
 
-// GET /api/firma-notificaciones/stream
 // Abre la conexión SSE para el cargo logueado
 export function stream(req, res) {
   const { cargo_id } = req.user;

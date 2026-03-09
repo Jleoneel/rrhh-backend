@@ -1,4 +1,3 @@
-// routes/distributivo.routes.js
 import express from "express";
 import multer from "multer";
 import XLSX from "xlsx";
@@ -28,7 +27,7 @@ router.post("/import", upload.single("file"), async (req, res) => {
   regimen_laboral: s(r["RÉGIMEN LABORAL"]),
 
   // Nivel ocupacional (si tu staging tiene nivel_gestion o nivel_ocupacional)
-  nivel_gestion: s(r["NIVEL OCUPACIONAL"]), // o cámbialo por el campo real de staging
+  nivel_gestion: s(r["NIVEL OCUPACIONAL"]),
 
   fecha_inicio: s(r["FECHA INICIO"]),
   fecha_fin: s(r["FECHA FIN"]),
