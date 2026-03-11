@@ -6,18 +6,18 @@ import path from "path";
 
 dotenv.config();
 
-import accionesRoutes from "./routes/acciones.routes.js";
-import servidoresRoutes from "./routes/servidores.routes.js";
-import authRoutes from "./routes/auth.routes.js";
-import firmasRoutes from "./routes/firmas.routes.js";
-import dashboardRoutes from "./routes/dashboard.routes.js";
-import tiposAcccionRoutes from "./routes/tiposAcccion.routes.js";
-import catalogosRoutes from "./routes/catalogos.routes.js";
-import accionesPdfRoutes from "./routes/accionesPdf.routes.js";
-import firmantesRoutes from "./routes/firmantes.routes.js";
-import notificacionesRoutes from "./routes/notificaciones.routes.js";
-import distributivoRoutes from "./routes/distributivo.routes.js";
-import firmaNotificacionRoutes from "./routes/firmaNotificacion.routes.js";
+import accionesRoutes from "./modules/acciones/acciones.routes.js";
+import servidoresRoutes from "./modules/servidores/servidores.routes.js";
+import authRoutes from "./modules/auth/auth.routes.js";
+import firmasRoutes from "./modules/firmas/firmas.routes.js";
+import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
+import tiposAcccionRoutes from "./modules/acciones/tiposAcccion.routes.js";
+import catalogosRoutes from "./modules/catalogos/catalogos.routes.js";
+import accionesPdfRoutes from "./modules/acciones/accionesPdf.routes.js";
+import firmantesRoutes from "./modules/firmantes/firmantes.routes.js";
+import notificacionesRoutes from "./modules/notificaciones/notificaciones.routes.js";
+import distributivoRoutes from "./modules/distributivo/distributivo.routes.js";
+import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.js";
 
 const app = express();
 app.use(cors({
