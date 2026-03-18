@@ -82,7 +82,8 @@ export async function loginByCedula(req, res) {
 
     // Determinar si es admin (basado en cargo_id UUID)
     const ADMIN_CARGO_ID = (process.env.ADMIN_CARGO_ID || "").trim();
-    const es_admin = ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
+    const es_admin =
+      ADMIN_CARGO_ID !== "" && firmante.cargo_id === ADMIN_CARGO_ID;
 
     const token = jwt.sign(
       {
@@ -113,5 +114,54 @@ export async function loginByCedula(req, res) {
       error: error.message,
       code: "SERVER_ERROR",
     });
+  }
+}
+
+// Controlador para cambiar contraseña
+export async function cambiarPassword(req, res) {
+  const { passwordActual, passwordNueva } = req.body;
+  const firmanteId = req.user.firmante_id;
+
+  if (!passwordActual || !passwordNueva) {
+    return res.status(400).json({ message: "Todos los campos son requeridos" });
+  }
+
+  if (passwordNueva.length < 6) {
+    return res
+      .status(400)
+      .json({
+        message: "La nueva contraseña debe tener al menos 6 caracteres",
+      });
+  }
+
+  try {
+    const r = await pool.query(
+      `SELECT password_hash FROM core.firmante WHERE id = $1`,
+      [firmanteId],
+    );
+
+    if (r.rowCount === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    const hash = r.rows[0].password_hash?.trim();
+    const passwordValida = await bcrypt.compare(passwordActual.trim(), hash);
+
+    if (!passwordValida) {
+      return res
+        .status(401)
+        .json({ message: "La contraseña actual es incorrecta" });
+    }
+
+    const nuevoHash = await bcrypt.hash(passwordNueva.trim(), 10);
+
+    await pool.query(
+      `UPDATE core.firmante SET password_hash = $1 WHERE id = $2`,
+      [nuevoHash, firmanteId],
+    );
+
+    return res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (error) {
+    return res.status(500).json({ message: "Error interno del servidor" });
   }
 }
