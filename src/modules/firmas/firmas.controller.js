@@ -32,7 +32,7 @@ export async function misFirmasPendientes(req, res) {
 // Controlador para eliminar una firma (solo si el documento fue subido por el mismo firmante)
 export async function eliminarFirma(req, res) {
   const { accionId, firmaId } = req.params;
-  const { firmante_id } = req.user; // 👈 debe venir del JWT
+  const { firmante_id } = req.user;
 
   const client = await pool.connect();
 

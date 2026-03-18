@@ -231,7 +231,10 @@ export const generarPdfAccion = async (req, res) => {
     );
 
     // cargar plantilla
-    const pdfPath = path.resolve("src/modules/acciones/pdf/plantilla_accion_personal1.pdf");
+    const pdfPath = path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      "pdf/plantilla_accion_personal1.pdf",
+    );
     const pdfBytes = fs.readFileSync(pdfPath);
 
     const pdfDoc = await PDFDocument.load(pdfBytes);

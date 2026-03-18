@@ -22,7 +22,7 @@ export async function registrarNotificacion(req, res) {
         medio,
         nombre,
         puesto,
-        id
+        id,
       ]);
 
       return res.json(r.rows[0]);
@@ -41,11 +41,10 @@ export async function registrarNotificacion(req, res) {
       hora,
       medio,
       nombre,
-      puesto
+      puesto,
     ]);
 
     return res.status(201).json(r.rows[0]);
-
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -66,11 +65,10 @@ export async function consultarNotificacion(req, res) {
     const r = await pool.query(q, [accionId]);
 
     if (r.rowCount === 0) {
-      return res.status(404).json({ error: "No existe notificación" });
+      return res.status(200).json(null);
     }
 
     return res.json(r.rows[0]);
-
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

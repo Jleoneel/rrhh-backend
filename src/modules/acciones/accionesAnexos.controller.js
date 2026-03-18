@@ -14,7 +14,7 @@ async function getAnexosDir(accionId) {
   return path.join(baseUploads, "acciones", codigo, "anexos");
 }
 
-//
+// Listar anexos: disponible para cualquier estado de la acción
 export const listar = async (req, res) => {
   const { accionId } = req.params;
   const { rows } = await pool.query(

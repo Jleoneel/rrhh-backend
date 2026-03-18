@@ -145,7 +145,7 @@ export async function subirFirmado(req, res) {
           [accionId],
         );
       }
-      // 🔔 Notificar al siguiente firmante si quedan pendientes
+      //Notificar al siguiente firmante si quedan pendientes
       if (restantes > 0) {
         const siguienteR = await client.query(
           `SELECT cargo_id, rol_firma, orden
