@@ -1,57 +1,49 @@
 import bcrypt from "bcrypt";
 import { pool } from "../../db.js";
 
-// Controladores para gestión de firmantes UATH
-async function getCargoUathId() {
-  const q = `
-    SELECT id
-    FROM core.cargo
-    WHERE UPPER(nombre) = 'ASISTENTE DE LA UATH'
-      AND activo = true
-    LIMIT 1;
-  `;
-  const r = await pool.query(q);
-  if (r.rowCount === 0) {
-    throw new Error("No existe el cargo 'ASISTENTE DE LA UATH' o está inactivo");
-  }
+const CARGOS_PERMITIDOS = [
+  'ASISTENTE DE LA UATH',
+  'RESPONSABLE DE LA UATH',
+  'JEFE DE AREA',
+  'ADMINISTRADOR DEL SISTEMA',
+];
+
+async function getCargoId(nombreCargo) {
+  const r = await pool.query(
+    `SELECT id FROM core.cargo WHERE UPPER(nombre) = UPPER($1) AND activo = true LIMIT 1`,
+    [nombreCargo]
+  );
+  if (r.rowCount === 0) throw new Error(`No existe el cargo '${nombreCargo}'`);
   return r.rows[0].id;
 }
 
-// Listar firmantes con cargo de UATH
 export async function listFirmantesUath(req, res) {
   try {
-    const cargoUathId = await getCargoUathId();
-
-    const q = `
+    const { rows } = await pool.query(`
       SELECT 
-        f.id,
-        f.numero_identificacion AS cedula,
-        f.nombre,
-        f.activo,
-        f.cargo_id,
+        f.id, f.numero_identificacion AS cedula,
+        f.nombre, f.activo, f.cargo_id,
         c.nombre AS cargo_nombre
       FROM core.firmante f
       LEFT JOIN core.cargo c ON c.id = f.cargo_id
-      WHERE f.cargo_id = $1
-      ORDER BY f.nombre ASC;
-    `;
-
-    const r = await pool.query(q, [cargoUathId]);
-    return res.json(r.rows);
+      WHERE c.nombre = ANY($1)
+      ORDER BY c.nombre, f.nombre ASC;
+    `, [CARGOS_PERMITIDOS]);
+    return res.json(rows);
   } catch (error) {
-    console.error("listFirmantesUath:", error);
     return res.status(500).json({ message: error.message });
   }
 }
 
-// Crear nuevo firmante con cargo de UATH
 export async function createFirmanteUath(req, res) {
-  const { cedula, nombre, password } = req.body;
+  const { cedula, nombre, password, cargo } = req.body;
 
-  if (!cedula || !nombre || !password) {
-    return res.status(400).json({
-      message: "cedula, nombre y password son requeridos",
-    });
+  if (!cedula || !nombre || !password || !cargo) {
+    return res.status(400).json({ message: "cedula, nombre, password y cargo son requeridos" });
+  }
+
+  if (!CARGOS_PERMITIDOS.includes(cargo)) {
+    return res.status(400).json({ message: "Cargo no permitido" });
   }
 
   const cleanCedula = String(cedula).trim();
@@ -60,52 +52,30 @@ export async function createFirmanteUath(req, res) {
   }
 
   try {
-    const cargoUathId = await getCargoUathId();
+    const cargoId = await getCargoId(cargo);
 
-    // Verificar duplicado por cédula
-    const existsQ = `
-      SELECT 1
-      FROM core.firmante
-      WHERE numero_identificacion = $1
-      LIMIT 1;
-    `;
-    const existsR = await pool.query(existsQ, [cleanCedula]);
-    if (existsR.rowCount > 0) {
+    const existe = await pool.query(
+      `SELECT 1 FROM core.firmante WHERE numero_identificacion = $1 LIMIT 1`,
+      [cleanCedula]
+    );
+    if (existe.rowCount > 0) {
       return res.status(409).json({ message: "Ya existe un firmante con esa cédula" });
     }
 
     const hash = await bcrypt.hash(String(password), 10);
 
-    const insertQ = `
-      INSERT INTO core.firmante (
-        numero_identificacion,
-        nombre,
-        activo,
-        cargo_id,
-        password_hash
-      )
+    const { rows } = await pool.query(`
+      INSERT INTO core.firmante (numero_identificacion, nombre, activo, cargo_id, password_hash)
       VALUES ($1, $2, true, $3, $4)
-      RETURNING 
-        id,
-        numero_identificacion AS cedula,
-        nombre,
-        activo,
-        cargo_id;
-    `;
+      RETURNING id, numero_identificacion AS cedula, nombre, activo, cargo_id
+    `, [cleanCedula, String(nombre).trim(), cargoId, hash]);
 
-    const r = await pool.query(insertQ, [cleanCedula, String(nombre).trim(), cargoUathId, hash]);
-
-    return res.status(201).json({
-      message: "Firmante UATH creado",
-      firmante: r.rows[0],
-    });
+    return res.status(201).json({ message: "Firmante creado", firmante: rows[0] });
   } catch (error) {
-    console.error("createFirmanteUath:", error);
     return res.status(500).json({ message: error.message });
   }
 }
 
-// Actualizar nombre y/o estado activo de un firmante UATH
 export async function updateFirmante(req, res) {
   const { id } = req.params;
   const { nombre, activo } = req.body;
@@ -115,59 +85,36 @@ export async function updateFirmante(req, res) {
   }
 
   try {
-    const q = `
+    const { rows } = await pool.query(`
       UPDATE core.firmante
-      SET
-        nombre = COALESCE($2, nombre),
-        activo = COALESCE($3, activo)
+      SET nombre = COALESCE($2, nombre), activo = COALESCE($3, activo)
       WHERE id = $1
-      RETURNING
-        id,
-        numero_identificacion AS cedula,
-        nombre,
-        activo,
-        cargo_id;
-    `;
-    const r = await pool.query(q, [id, nombre?.trim?.() ?? null, typeof activo === "boolean" ? activo : null]);
+      RETURNING id, numero_identificacion AS cedula, nombre, activo, cargo_id
+    `, [id, nombre?.trim?.() ?? null, typeof activo === "boolean" ? activo : null]);
 
-    if (r.rowCount === 0) {
-      return res.status(404).json({ message: "Firmante no encontrado" });
-    }
-
-    return res.json({ message: "Firmante actualizado", firmante: r.rows[0] });
+    if (!rows.length) return res.status(404).json({ message: "Firmante no encontrado" });
+    return res.json({ message: "Firmante actualizado", firmante: rows[0] });
   } catch (error) {
-    console.error("updateFirmante:", error);
     return res.status(500).json({ message: error.message });
   }
 }
 
-// Resetear contraseña de un firmante UATH
 export async function resetPasswordFirmante(req, res) {
   const { id } = req.params;
   const { password } = req.body;
 
-  if (!password) {
-    return res.status(400).json({ message: "password es requerido" });
-  }
+  if (!password) return res.status(400).json({ message: "password es requerido" });
 
   try {
     const hash = await bcrypt.hash(String(password), 10);
+    const { rows } = await pool.query(`
+      UPDATE core.firmante SET password_hash = $2 WHERE id = $1
+      RETURNING id, numero_identificacion AS cedula, nombre
+    `, [id, hash]);
 
-    const q = `
-      UPDATE core.firmante
-      SET password_hash = $2
-      WHERE id = $1
-      RETURNING id, numero_identificacion AS cedula, nombre;
-    `;
-    const r = await pool.query(q, [id, hash]);
-
-    if (r.rowCount === 0) {
-      return res.status(404).json({ message: "Firmante no encontrado" });
-    }
-
-    return res.json({ message: "Contraseña actualizada", firmante: r.rows[0] });
+    if (!rows.length) return res.status(404).json({ message: "Firmante no encontrado" });
+    return res.json({ message: "Contraseña actualizada", firmante: rows[0] });
   } catch (error) {
-    console.error("resetPasswordFirmante:", error);
     return res.status(500).json({ message: error.message });
   }
 }
