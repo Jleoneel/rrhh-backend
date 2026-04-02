@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { pool } from "../../db.js";
 import * as anexosCtrl from "../acciones/accionesAnexos.controller.js";
-import { requireAuth } from "../../shared/middleware/auth.middleware.js";
+import {
+  requireAuth,
+  requireAdmin,
+} from "../../shared/middleware/auth.middleware.js";
 import { uploadFirma, uploadAnexo } from "../../shared/utils/upload.js";
 import { subirFirmado } from "../acciones/accionesFirma.controller.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
@@ -45,6 +48,19 @@ const parseBoolean = (value) => {
 export async function requirePuedeFirmarPaso(req, res, next) {
   const { accionId } = req.params;
   const { cargo_id } = req.user;
+
+  // ← Verificar que la acción no esté insubsistente
+  const accionR = await pool.query(
+    `SELECT estado FROM core.accion_personal WHERE id = $1`,
+    [accionId],
+  );
+
+  if (accionR.rows[0]?.estado === "INSUBSISTENTE") {
+    return res.status(409).json({
+      message: "No se puede firmar una acción insubsistente",
+      code: "ACCION_INSUBSISTENTE",
+    });
+  }
 
   const q = `
     SELECT cargo_id, orden, rol_firma
@@ -165,7 +181,7 @@ router.post(
 
       const tipo_accion_id = ta.rows[0].id;
 
-// 3) Crear accion_personal (BORRADOR) + campos extra
+      // 3) Crear accion_personal (BORRADOR) + campos extra
       const accQ = `
       INSERT INTO core.accion_personal
         (tipo_accion_id, servidor_id, puesto_id, motivo, estado, rige_desde, rige_hasta, tipo_accion_otro_detalle, presento_declaracion_jurada, proceso_institucional_id,nivel_gestion_id)
@@ -380,7 +396,6 @@ router.put(
       propuesta,
       procesoInstitucionalId,
       nivelGestionId,
-
     } = req.body;
 
     if (!tipoAccionNombre || !String(tipoAccionNombre).trim()) {
@@ -391,12 +406,10 @@ router.put(
 
     if (String(tipoAccionNombre).trim() === "Otro") {
       if (!tipoAccionOtroDetalle || !String(tipoAccionOtroDetalle).trim()) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "tipoAccionOtroDetalle es requerido si tipoAccionNombre es 'Otro'",
-          });
+        return res.status(400).json({
+          message:
+            "tipoAccionOtroDetalle es requerido si tipoAccionNombre es 'Otro'",
+        });
       }
     }
 
@@ -462,8 +475,8 @@ router.put(
           ? String(tipoAccionOtroDetalle).trim()
           : null,
         parseBoolean(presentoDeclaracionJurada),
-          procesoInstitucionalId || null, //
-          nivelGestionId || null,
+        procesoInstitucionalId || null, //
+        nivelGestionId || null,
       ]);
 
       // 4) si cambió tipo -> re-clonar firmas
@@ -483,7 +496,7 @@ router.put(
         `;
         await client.query(cloneQ, [id, newTipoId]);
       }
-      
+
       // 5) propuesta (si aplica)
       if (requierePropuesta) {
         const p = propuesta || {};
@@ -683,8 +696,10 @@ router.put("/:id/propuesta", requireAuth, async (req, res) => {
   return res.json(rows[0]);
 });
 
+// Rutas para anexos
 router.get("/:accionId/anexos", requireAuth, anexosCtrl.listar);
 
+// POST /api/acciones/:accionId/anexos  (subir nuevo anexo)
 router.post(
   "/:accionId/anexos",
   requireAuth,
@@ -693,13 +708,74 @@ router.post(
   anexosCtrl.subir,
 );
 
+// GET /api/acciones/:accionId/anexos/:anexoId/descargar
 router.get("/:accionId/anexos/:anexoId/descargar", anexosCtrl.descargar);
 
+// DELETE /api/acciones/:accionId/anexos/:anexoId
 router.delete(
   "/:accionId/anexos/:anexoId",
   requireAuth,
   requireCargo([CARGO_ASISTENTE_UATH]),
   anexosCtrl.eliminar,
+);
+
+// PUT /api/acciones/:id/insubsistente → marcar acción como insubsistente
+router.put(
+  "/:id/insubsistente",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const { motivo } = req.body;
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Verificar que existe
+      const accionR = await client.query(
+        `SELECT id, estado, numero_elaboracion FROM core.accion_personal WHERE id = $1`,
+        [id],
+      );
+
+      if (!accionR.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Acción no encontrada" });
+      }
+
+      const accion = accionR.rows[0];
+
+      if (accion.estado === "INSUBSISTENTE") {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Esta acción ya está marcada como insubsistente" });
+      }
+
+      // Marcar como insubsistente
+      await client.query(
+        `
+      UPDATE core.accion_personal
+      SET estado = 'INSUBSISTENTE',
+          motivo_insubsistente = $1
+      WHERE id = $2
+    `,
+        [motivo || null, id],
+      );
+
+      await client.query("COMMIT");
+      return res.json({
+        message: `Acción ${accion.numero_elaboracion} marcada como insubsistente correctamente`,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      return res
+        .status(500)
+        .json({ message: "Error procesando solicitud", error: err.message });
+    } finally {
+      client.release();
+    }
+  },
 );
 
 export default router;
