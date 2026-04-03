@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { pool } from "../../../db.js";
-import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
+import {
+  requireAuth,
+  requireFirmante,
+} from "../../../shared/middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -31,7 +34,9 @@ router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo bandeja", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error obteniendo bandeja", error: err.message });
   }
 });
 
@@ -42,7 +47,9 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
   const { firmante_id } = req.user;
 
   if (!["APROBADO", "RECHAZADO"].includes(estado)) {
-    return res.status(400).json({ message: "Estado debe ser APROBADO o RECHAZADO" });
+    return res
+      .status(400)
+      .json({ message: "Estado debe ser APROBADO o RECHAZADO" });
   }
 
   const client = await pool.connect();
@@ -56,13 +63,17 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
 
     if (!solicitudR.rows.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Solicitud no encontrada o no autorizado" });
+      return res
+        .status(404)
+        .json({ message: "Solicitud no encontrada o no autorizado" });
     }
 
     const solicitud = solicitudR.rows[0];
     if (solicitud.estado !== "PENDIENTE") {
       await client.query("ROLLBACK");
-      return res.status(409).json({ message: "Esta solicitud ya fue procesada" });
+      return res
+        .status(409)
+        .json({ message: "Esta solicitud ya fue procesada" });
     }
 
     await client.query(
@@ -77,30 +88,52 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
     if (estado === "APROBADO") {
       const anio = new Date(solicitud.fecha).getFullYear();
 
-      await client.query(
+      // ← Verificar tipo de permiso
+      const tipoR = await client.query(
         `
-        UPDATE core.saldo_permiso
-        SET horas_usadas = horas_usadas + $1, updated_at = NOW()
-        WHERE servidor_id = $2 AND anio = $3
-      `,
-        [solicitud.horas_solicitadas, solicitud.servidor_id, anio],
+    SELECT nombre FROM core.permiso_tipo WHERE id = $1
+  `,
+        [solicitud.permiso_tipo_id],
       );
 
-      await client.query(
-        `
-        INSERT INTO core.permiso_movimiento
-          (servidor_id, solicitud_id, anio, horas, tipo, descripcion, creado_por)
-        VALUES ($1, $2, $3, $4, 'DESCUENTO', 'Permiso aprobado', $5)
-      `,
-        [solicitud.servidor_id, id, anio, solicitud.horas_solicitadas, firmante_id],
-      );
+      const tipoNombre = tipoR.rows[0]?.nombre || "";
+
+      if (tipoNombre === "Personal") {
+        await client.query(
+          `
+      UPDATE core.saldo_permiso
+      SET horas_usadas = horas_usadas + $1, updated_at = NOW()
+      WHERE servidor_id = $2 AND anio = $3
+    `,
+          [solicitud.horas_solicitadas, solicitud.servidor_id, anio],
+        );
+
+        await client.query(
+          `
+      INSERT INTO core.permiso_movimiento
+        (servidor_id, solicitud_id, anio, horas, tipo, descripcion, creado_por)
+      VALUES ($1, $2, $3, $4, 'DESCUENTO', 'Permiso personal aprobado', $5)
+    `,
+          [
+            solicitud.servidor_id,
+            id,
+            anio,
+            solicitud.horas_solicitadas,
+            firmante_id,
+          ],
+        );
+      }
     }
 
     await client.query("COMMIT");
-    return res.json({ message: `Permiso ${estado.toLowerCase()} correctamente` });
+    return res.json({
+      message: `Permiso ${estado.toLowerCase()} correctamente`,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error procesando solicitud", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error procesando solicitud", error: err.message });
   } finally {
     client.release();
   }

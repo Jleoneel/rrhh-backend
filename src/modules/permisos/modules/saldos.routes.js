@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { pool } from "../../../db.js";
-import { requireAuth, requireFirmante, requireServidor } from "../../../shared/middleware/auth.middleware.js";
+import {
+  requireAuth,
+  requireFirmante,
+  requireServidor,
+} from "../../../shared/middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -27,18 +31,24 @@ router.get("/saldos", requireAuth, requireFirmante, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldos", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error obteniendo saldos", error: err.message });
   }
 });
 
-// POST /api/permisos/saldos
+// POST /api/permisos/saldos → inicializar o ajustar saldo
 router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
-  const { servidor_id, horas_totales, anio, descripcion } = req.body;
+  const { servidor_id, dias, anio, descripcion } = req.body; // ← días en lugar de horas_totales
   const anioFinal = anio || new Date().getFullYear();
 
-  if (!servidor_id || !horas_totales) {
-    return res.status(400).json({ message: "servidor_id y horas_totales son requeridos" });
+  if (!servidor_id || !dias) {
+    return res
+      .status(400)
+      .json({ message: "servidor_id y dias son requeridos" });
   }
+
+  const horas_totales = parseFloat(dias) * 8; // ← conversión aquí
 
   const client = await pool.connect();
   try {
@@ -65,7 +75,7 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
         servidor_id,
         anioFinal,
         horas_totales,
-        descripcion || "Inicialización de saldo",
+        descripcion || `Inicialización: ${dias} días`,
         req.user.firmante_id,
       ],
     );
@@ -74,7 +84,9 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
     return res.status(201).json(rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error creando saldo", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error creando saldo", error: err.message });
   } finally {
     client.release();
   }
@@ -106,17 +118,23 @@ router.get("/mi-saldo", requireAuth, requireServidor, async (req, res) => {
     }
     return res.json(rows[0]);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldo", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error obteniendo saldo", error: err.message });
   }
 });
 
 // GET /api/permisos/mi-saldo-firmante
-router.get("/mi-saldo-firmante", requireAuth, requireFirmante, async (req, res) => {
-  const { firmante_id } = req.user;
-  const anio = new Date().getFullYear();
-  try {
-    const { rows } = await pool.query(
-      `
+router.get(
+  "/mi-saldo-firmante",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const { firmante_id } = req.user;
+    const anio = new Date().getFullYear();
+    try {
+      const { rows } = await pool.query(
+        `
       SELECT
         sp.horas_totales, sp.horas_usadas,
         (sp.horas_totales - sp.horas_usadas) AS horas_disponibles, sp.anio
@@ -126,21 +144,24 @@ router.get("/mi-saldo-firmante", requireAuth, requireFirmante, async (req, res) 
       WHERE f.id = $1 AND sp.anio = $2
       LIMIT 1
     `,
-      [firmante_id, anio],
-    );
+        [firmante_id, anio],
+      );
 
-    if (!rows.length) {
-      return res.json({
-        horas_totales: 0,
-        horas_usadas: 0,
-        horas_disponibles: 0,
-        anio,
-      });
+      if (!rows.length) {
+        return res.json({
+          horas_totales: 0,
+          horas_usadas: 0,
+          horas_disponibles: 0,
+          anio,
+        });
+      }
+      return res.json(rows[0]);
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ message: "Error obteniendo saldo", error: err.message });
     }
-    return res.json(rows[0]);
-  } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldo", error: err.message });
-  }
-});
+  },
+);
 
 export default router;
