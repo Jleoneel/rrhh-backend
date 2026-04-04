@@ -126,4 +126,63 @@ router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
   }
 });
 
+// PUT /api/permisos/solicitar/:id/cancelar
+router.put("/:id/cancelar", requireAuth, requireServidor, async (req, res) => {
+  const { servidor_id } = req.user;
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const solicitudR = await client.query(
+      `
+      SELECT id, estado, servidor_id 
+      FROM core.permiso_solicitud 
+      WHERE id = $1
+    `,
+      [id],
+    );
+
+    if (!solicitudR.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Solicitud no encontrada" });
+    }
+
+    const solicitud = solicitudR.rows[0];
+
+    // Verificar que es el dueño
+    if (solicitud.servidor_id !== servidor_id) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "No autorizado" });
+    }
+
+    // Solo PENDIENTE puede cancelarse
+    if (solicitud.estado !== "PENDIENTE") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        message: "Solo se pueden cancelar solicitudes en estado PENDIENTE",
+      });
+    }
+
+    await client.query(
+      `
+      UPDATE core.permiso_solicitud 
+      SET estado = 'CANCELADO' 
+      WHERE id = $1
+    `,
+      [id],
+    );
+
+    await client.query("COMMIT");
+    return res.json({ message: "Solicitud cancelada correctamente" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    return res
+      .status(500)
+      .json({ message: "Error cancelando solicitud", error: err.message });
+  } finally {
+    client.release();
+  }
+});
 export default router;
