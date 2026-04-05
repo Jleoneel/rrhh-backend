@@ -4,6 +4,7 @@ import {
   requireAuth,
   requireServidor,
 } from "../../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 
 const router = Router();
 
@@ -36,8 +37,6 @@ router.get("/mis-permisos", requireAuth, requireServidor, async (req, res) => {
 // POST /api/permisos/solicitar
 router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
   const { servidor_id, unidad_organica_id } = req.user;
-  console.log("req.user:", req.user); // ← agregar esto
-  console.log("req.body:", req.body); // ← agregar esto
   const { permiso_tipo_id, fecha, hora_salida, hora_regreso, motivo } =
     req.body;
 
@@ -56,10 +55,29 @@ router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
   }
 
   const anio = new Date(fecha).getFullYear();
-  const client = await pool.connect();
+  const client = await pool.connect(); // ← primero declarar client
 
   try {
     await client.query("BEGIN");
+
+    // ← Validar duplicado AQUÍ dentro del try
+    const duplicadoR = await client.query(
+      `
+      SELECT id FROM core.permiso_solicitud
+      WHERE servidor_id = $1
+        AND fecha = $2
+        AND estado NOT IN ('RECHAZADO', 'CANCELADO')
+      LIMIT 1
+    `,
+      [servidor_id, fecha],
+    );
+
+    if (duplicadoR.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        message: "Ya tienes una solicitud de permiso activa para ese día",
+      });
+    }
 
     const saldoR = await client.query(
       `
@@ -115,6 +133,23 @@ router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
     );
 
     await client.query("COMMIT");
+
+    if (jefe_firmante_id) {
+      await pool.query(
+        `
+        INSERT INTO core.notificacion_permiso (solicitud_id, firmante_id, tipo)
+        VALUES ($1, $2, 'NUEVA_SOLICITUD')
+      `,
+        [rows[0].id, jefe_firmante_id],
+      );
+
+      notifyCargoId(`permiso-firmante-${jefe_firmante_id}`, {
+        tipo: "NUEVA_SOLICITUD",
+        solicitud_id: rows[0].id,
+        mensaje: "Tienes una nueva solicitud de permiso pendiente",
+      });
+    }
+
     return res.status(201).json(rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -185,4 +220,5 @@ router.put("/:id/cancelar", requireAuth, requireServidor, async (req, res) => {
     client.release();
   }
 });
+
 export default router;

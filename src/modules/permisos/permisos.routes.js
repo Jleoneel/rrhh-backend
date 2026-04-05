@@ -9,6 +9,7 @@ import solicitudesServidorRoutes from "./modules/solicitudes-servidor.routes.js"
 import solicitudesFirmanteRoutes from "./modules/solicitudes-firmante.routes.js";
 import bandejaRoutes from "./modules/bandeja.routes.js";
 import catalogosRoutes from "./modules/catalogos.routes.js";
+import notificacionesPermisoRoutes from "./modules/notificaciones-permiso.routes.js";
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.use(solicitudesServidorRoutes);
 router.use(solicitudesFirmanteRoutes);
 router.use(bandejaRoutes);
 router.use(catalogosRoutes);
+router.use("/notificaciones", notificacionesPermisoRoutes);
 
 // Endpoint adicional que no encaja en los módulos anteriores
 router.get("/firmantes-disponibles", requireAuth, requireFirmante, async (req, res) => {
