@@ -67,8 +67,7 @@ router.post(
         .json({ message: "La hora de regreso debe ser posterior" });
     }
 
-    const anio = new Date(fecha).getFullYear();
-    const client = await pool.connect(); // ← primero declarar client
+    const client = await pool.connect();
 
     try {
       await client.query("BEGIN");
@@ -96,22 +95,21 @@ router.post(
 
       const { servidor_id, unidad_organica_id } = svR.rows[0];
 
-      // ← Validar duplicado AQUÍ, después de tener servidor_id y dentro del try
+      //Validar duplicado
       const duplicadoR = await client.query(
         `
-      SELECT id FROM core.permiso_solicitud
-      WHERE servidor_id = $1
-        AND fecha = $2
-        AND estado NOT IN ('RECHAZADO', 'CANCELADO')
-      LIMIT 1
-    `,
-        [servidor_id, fecha],
+        SELECT id FROM core.permiso_solicitud
+          WHERE servidor_id = $1
+        AND estado = 'PENDIENTE'
+          LIMIT 1`,
+        [servidor_id],
       );
 
       if (duplicadoR.rows.length > 0) {
         await client.query("ROLLBACK");
         return res.status(409).json({
-          message: "Ya tienes una solicitud de permiso activa para ese día",
+          message:
+            "Tienes una solicitud pendiente. Espera la respuesta antes de solicitar otra.",
         });
       }
 
@@ -120,9 +118,9 @@ router.post(
         `
       SELECT horas_totales, horas_usadas
       FROM core.saldo_permiso
-      WHERE servidor_id = $1 AND anio = $2
+      WHERE servidor_id = $1
     `,
-        [servidor_id, anio],
+        [servidor_id],
       );
 
       if (!saldoR.rows.length) {
@@ -131,14 +129,22 @@ router.post(
           .status(400)
           .json({ message: "No tiene saldo asignado. Contacte a UATH." });
       }
+      // Verificar saldo SOLO si es permiso Personal
+      const tipoR = await client.query(
+        `SELECT nombre FROM core.permiso_tipo WHERE id = $1`,
+        [permiso_tipo_id],
+      );
+      const tipoNombre = tipoR.rows[0]?.nombre || "";
 
-      const disponibles =
-        saldoR.rows[0].horas_totales - saldoR.rows[0].horas_usadas;
-      if (horas_solicitadas > disponibles) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({
-          message: `Saldo insuficiente. Disponible: ${disponibles}h, Solicitado: ${horas_solicitadas}h`,
-        });
+      if (tipoNombre === "Personal") {
+        const disponibles =
+          saldoR.rows[0].horas_totales - saldoR.rows[0].horas_usadas;
+        if (horas_solicitadas > disponibles) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            message: `Saldo insuficiente. Disponible: ${disponibles}h, Solicitado: ${horas_solicitadas}h`,
+          });
+        }
       }
 
       const unidadR = await client.query(
@@ -170,7 +176,7 @@ router.post(
       );
 
       await client.query("COMMIT");
-      // ← Notificar al jefe después del COMMIT
+      //Notificar al jefe
       if (jefe_firmante_id) {
         await pool.query(
           `
@@ -197,5 +203,67 @@ router.post(
     }
   },
 );
+
+// PUT /api/permisos/:id/cancelar-firmante
+router.put("/:id/cancelar-firmante", requireAuth, requireFirmante, async (req, res) => {
+  const { firmante_id } = req.user;
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Obtener servidor vinculado al firmante
+    const svR = await client.query(`
+      SELECT sv.id AS servidor_id
+      FROM core.firmante f
+      JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
+      WHERE f.id = $1
+      LIMIT 1
+    `, [firmante_id]);
+
+    if (!svR.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Servidor no encontrado" });
+    }
+
+    const { servidor_id } = svR.rows[0];
+
+    const solicitudR = await client.query(`
+      SELECT id, estado, servidor_id 
+      FROM core.permiso_solicitud 
+      WHERE id = $1
+    `, [id]);
+
+    if (!solicitudR.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Solicitud no encontrada" });
+    }
+
+    const solicitud = solicitudR.rows[0];
+
+    if (solicitud.servidor_id !== servidor_id) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "No autorizado" });
+    }
+
+    if (solicitud.estado !== "PENDIENTE") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Solo se pueden cancelar solicitudes PENDIENTE" });
+    }
+
+    await client.query(`
+      UPDATE core.permiso_solicitud SET estado = 'CANCELADO' WHERE id = $1
+    `, [id]);
+
+    await client.query("COMMIT");
+    return res.json({ message: "Solicitud cancelada correctamente" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    return res.status(500).json({ message: "Error cancelando", error: err.message });
+  } finally {
+    client.release();
+  }
+});
 
 export default router;

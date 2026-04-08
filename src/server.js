@@ -19,6 +19,7 @@ import notificacionesRoutes from "./modules/notificaciones/notificaciones.routes
 import distributivoRoutes from "./modules/distributivo/distributivo.routes.js";
 import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.js";
 import permisosRoutes from "./modules/permisos/permisos.routes.js"
+import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
 
 const app = express();
 const allowedOrigins = [
@@ -46,7 +47,7 @@ app.use(express.json());
 const uploadsDir = path.resolve(process.env.UPLOADS_DIR || "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// Exponer archivos estáticos (para descargar PDFs luego si quieres)
+// Exponer archivos estáticos
 app.use("/uploads", express.static(uploadsDir));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -68,3 +69,5 @@ app.use("/api/permisos", permisosRoutes);
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+iniciarCronAcumularSaldos();
+

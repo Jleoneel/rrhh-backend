@@ -16,7 +16,7 @@ router.get("/acciones-resumen", requireAuth, async (req, res) => {
         COUNT(*) FILTER (WHERE estado = 'BORRADOR') AS borrador,
         COUNT(*) FILTER (WHERE estado = 'EN_FIRMA') AS en_revision,
         COUNT(*) FILTER (WHERE estado = 'APROBADO') AS aprobadas,
-        COUNT(*) FILTER (WHERE estado = 'RECHAZADO') AS rechazadas
+        COUNT(*) FILTER (WHERE estado = 'INSUBSISTENTE') AS rechazadas
       FROM core.accion_personal;
     `;
 

@@ -54,38 +54,34 @@ router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
       .json({ message: "La hora de regreso debe ser posterior" });
   }
 
-  const anio = new Date(fecha).getFullYear();
-  const client = await pool.connect(); // ← primero declarar client
+  const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
 
-    // ← Validar duplicado AQUÍ dentro del try
+    //Validar duplicado AQUÍ dentro del try
     const duplicadoR = await client.query(
-      `
-      SELECT id FROM core.permiso_solicitud
-      WHERE servidor_id = $1
-        AND fecha = $2
-        AND estado NOT IN ('RECHAZADO', 'CANCELADO')
-      LIMIT 1
-    `,
-      [servidor_id, fecha],
+      `SELECT id FROM core.permiso_solicitud
+        WHERE servidor_id = $1
+      AND estado = 'PENDIENTE'
+        LIMIT 1`,
+      [servidor_id],
     );
 
     if (duplicadoR.rows.length > 0) {
       await client.query("ROLLBACK");
       return res.status(409).json({
-        message: "Ya tienes una solicitud de permiso activa para ese día",
+        message:
+          "Tienes una solicitud pendiente. Espera la respuesta antes de solicitar otra.",
       });
     }
-
     const saldoR = await client.query(
       `
       SELECT horas_totales, horas_usadas
       FROM core.saldo_permiso
-      WHERE servidor_id = $1 AND anio = $2
+      WHERE servidor_id = $1 
     `,
-      [servidor_id, anio],
+      [servidor_id],
     );
 
     if (!saldoR.rows.length) {

@@ -74,7 +74,6 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
     `, [estado, observacion || null, id]);
 
     if (estado === "APROBADO") {
-      const anio = new Date(solicitud.fecha).getFullYear();
 
       const tipoR = await client.query(
         `SELECT nombre FROM core.permiso_tipo WHERE id = $1`,
@@ -87,18 +86,18 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
         await client.query(`
           UPDATE core.saldo_permiso
           SET horas_usadas = horas_usadas + $1, updated_at = NOW()
-          WHERE servidor_id = $2 AND anio = $3
-        `, [solicitud.horas_solicitadas, solicitud.servidor_id, anio]);
+          WHERE servidor_id = $2
+        `, [solicitud.horas_solicitadas, solicitud.servidor_id]);
 
         await client.query(`
           INSERT INTO core.permiso_movimiento
-            (servidor_id, solicitud_id, anio, horas, tipo, descripcion, creado_por)
-          VALUES ($1, $2, $3, $4, 'DESCUENTO', 'Permiso personal aprobado', $5)
-        `, [solicitud.servidor_id, id, anio, solicitud.horas_solicitadas, firmante_id]);
+            (servidor_id, solicitud_id, horas, tipo, descripcion, creado_por)
+          VALUES ($1, $2, $3, 'DESCUENTO', 'Permiso personal aprobado', $4)
+            `,[solicitud.servidor_id, id, solicitud.horas_solicitadas, firmante_id]);
       }
     }
 
-    await client.query("COMMIT"); // ← COMMIT antes de notificaciones
+    await client.query("COMMIT");
 
     // Buscar si el servidor tiene firmante vinculado
     const firmanteR = await pool.query(`
