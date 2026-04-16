@@ -1,7 +1,14 @@
 import { Router } from "express";
 import { pool } from "../../../db.js";
-import { requireAuth, requireFirmante, requireServidor } from "../../../shared/middleware/auth.middleware.js";
-import { addConnection, removeConnection } from "../../../shared/utils/sseManager.js";
+import {
+  requireAuth,
+  requireFirmante,
+  requireServidor,
+} from "../../../shared/middleware/auth.middleware.js";
+import {
+  addConnection,
+  removeConnection,
+} from "../../../shared/utils/sseManager.js";
 
 const router = Router();
 // SSE para firmantes (jefes)
@@ -46,7 +53,8 @@ router.get("/stream-servidor", requireAuth, requireServidor, (req, res) => {
 router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
   const { firmante_id } = req.user;
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query(
+      `
       SELECT
         np.id, np.solicitud_id, np.tipo, np.leida, np.creada_en,
         ps.fecha, ps.horas_solicitadas,
@@ -56,7 +64,9 @@ router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
       JOIN core.servidor sv ON sv.id = ps.servidor_id
       WHERE np.firmante_id = $1 AND np.leida = false
       ORDER BY np.creada_en DESC
-    `, [firmante_id]);
+    `,
+      [firmante_id],
+    );
     return res.json(rows);
   } catch (err) {
     return res.status(500).json({ message: "Error", error: err.message });
@@ -66,7 +76,8 @@ router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
 router.get("/servidor", requireAuth, requireServidor, async (req, res) => {
   const { servidor_id } = req.user;
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query(
+      `
       SELECT
         np.id, np.solicitud_id, np.tipo, np.leida, np.creada_en,
         ps.fecha, ps.horas_solicitadas
@@ -74,7 +85,9 @@ router.get("/servidor", requireAuth, requireServidor, async (req, res) => {
       JOIN core.permiso_solicitud ps ON ps.id = np.solicitud_id
       WHERE np.servidor_id = $1 AND np.leida = false
       ORDER BY np.creada_en DESC
-    `, [servidor_id]);
+    `,
+      [servidor_id],
+    );
     return res.json(rows);
   } catch (err) {
     return res.status(500).json({ message: "Error", error: err.message });
@@ -87,7 +100,7 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
   try {
     await pool.query(
       `UPDATE core.notificacion_permiso SET leida = true WHERE id = $1`,
-      [id]
+      [id],
     );
     return res.json({ ok: true });
   } catch (err) {
@@ -95,30 +108,106 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
   }
 });
 
-router.patch("/leer-todas-firmante", requireAuth, requireFirmante, async (req, res) => {
-  const { firmante_id } = req.user;
-  try {
-    await pool.query(
-      `UPDATE core.notificacion_permiso SET leida = true WHERE firmante_id = $1 AND leida = false`,
-      [firmante_id]
-    );
-    return res.json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
-  }
-});
+router.patch(
+  "/leer-todas-firmante",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const { firmante_id } = req.user;
+    try {
+      await pool.query(
+        `UPDATE core.notificacion_permiso SET leida = true WHERE firmante_id = $1 AND leida = false`,
+        [firmante_id],
+      );
+      return res.json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Error", error: err.message });
+    }
+  },
+);
 
-router.patch("/leer-todas-servidor", requireAuth, requireServidor, async (req, res) => {
-  const { servidor_id } = req.user;
-  try {
-    await pool.query(
-      `UPDATE core.notificacion_permiso SET leida = true WHERE servidor_id = $1 AND leida = false`,
-      [servidor_id]
-    );
-    return res.json({ ok: true });
-  } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
-  }
-});
+router.patch(
+  "/leer-todas-servidor",
+  requireAuth,
+  requireServidor,
+  async (req, res) => {
+    const { servidor_id } = req.user;
+    try {
+      await pool.query(
+        `UPDATE core.notificacion_permiso SET leida = true WHERE servidor_id = $1 AND leida = false`,
+        [servidor_id],
+      );
+      return res.json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Error", error: err.message });
+    }
+  },
+);
+
+// GET notificaciones vacaciones firmante
+router.get(
+  "/vacaciones-firmante",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const { firmante_id } = req.user;
+    try {
+      const { rows } = await pool.query(
+        `
+      SELECT
+        np.id, np.vacacion_solicitud_id AS solicitud_id, 
+        np.tipo, np.leida, np.creada_en,
+        vs.dias_solicitados,
+        TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
+        TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
+        sv.nombres AS servidor_nombre
+      FROM core.notificacion_permiso np
+      JOIN core.vacacion_solicitud vs ON vs.id = np.vacacion_solicitud_id
+      JOIN core.servidor sv ON sv.id = vs.servidor_id
+      WHERE np.firmante_id = $1 
+        AND np.vacacion_solicitud_id IS NOT NULL
+        AND np.leida = false
+      ORDER BY np.creada_en DESC
+    `,
+        [firmante_id],
+      );
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({ message: "Error", error: err.message });
+    }
+  },
+);
+
+// GET notificaciones vacaciones servidor
+router.get(
+  "/vacaciones-servidor",
+  requireAuth,
+  requireServidor,
+  async (req, res) => {
+    const { servidor_id } = req.user;
+    try {
+      const { rows } = await pool.query(
+        `
+      SELECT
+        np.id, np.vacacion_solicitud_id AS solicitud_id,
+        np.tipo, np.leida, np.creada_en,
+        vs.dias_solicitados,
+        TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
+        TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin
+      FROM core.notificacion_permiso np
+      JOIN core.vacacion_solicitud vs ON vs.id = np.vacacion_solicitud_id
+      WHERE np.servidor_id = $1
+        AND np.vacacion_solicitud_id IS NOT NULL
+        AND np.leida = false
+      ORDER BY np.creada_en DESC
+    `,
+        [servidor_id],
+      );
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({ message: "Error", error: err.message });
+    }
+  },
+);
 
 export default router;

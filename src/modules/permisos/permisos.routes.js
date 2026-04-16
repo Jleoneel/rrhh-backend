@@ -11,7 +11,7 @@ import bandejaRoutes from "./modules/bandeja.routes.js";
 import catalogosRoutes from "./modules/catalogos.routes.js";
 import notificacionesPermisoRoutes from "./modules/notificaciones-permiso.routes.js";
 import reporteRoutes from "./modules/reporte.routes.js";
-
+import vacacionesRoutes from "./modules/vacaciones.routes.js";
 
 const router = Router();
 
@@ -25,6 +25,7 @@ router.use(bandejaRoutes);
 router.use(catalogosRoutes);
 router.use("/notificaciones", notificacionesPermisoRoutes);
 router.use(reporteRoutes);
+router.use(vacacionesRoutes);
 
 // Endpoint adicional que no encaja en los módulos anteriores
 router.get("/firmantes-disponibles", requireAuth, requireFirmante, async (req, res) => {
