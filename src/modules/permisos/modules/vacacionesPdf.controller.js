@@ -51,7 +51,9 @@ export const generarPdfVacacion = async (req, res) => {
         fu.nombre AS uath_nombre,
         cu.nombre AS uath_cargo,
         sp.horas_totales, sp.horas_usadas,
-        (sp.horas_totales - sp.horas_usadas) AS horas_disponibles
+        (sp.horas_totales - sp.horas_usadas) AS horas_disponibles,
+        uj.nombre AS unidad_jefe,
+        ug.nombre AS unidad_gerente
       FROM core.vacacion_solicitud vs
       JOIN core.servidor sv ON sv.id = vs.servidor_id
       LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
@@ -65,6 +67,8 @@ export const generarPdfVacacion = async (req, res) => {
       LEFT JOIN core.firmante fu ON fu.id = vs.uath_id
       LEFT JOIN core.cargo cu ON cu.id = fu.cargo_id
       LEFT JOIN core.saldo_permiso sp ON sp.servidor_id = sv.id
+      LEFT JOIN core.unidad_organica uj ON uj.jefe_id = vs.jefe_firmante_id
+      LEFT JOIN core.unidad_organica ug ON ug.jefe_superior_id = vs.gerente_id
       WHERE vs.id = $1 LIMIT 1
     `,
       [id],
@@ -219,9 +223,7 @@ export const generarPdfVacacion = async (req, res) => {
 
     // ─── TELÉFONOS ────────────────────────────────────────────────
     // Caja de teléfono: x0=442.149, y=323.253
-    const tel = [v.telefono_movil]
-      .filter(Boolean)
-      .join(" / ");
+    const tel = [v.telefono_movil].filter(Boolean).join(" / ");
     t(tel, 450, H - 332, 7);
 
     // ─── AUTORIZACIÓN ─────────────────────────────────────────────
@@ -239,12 +241,18 @@ export const generarPdfVacacion = async (req, res) => {
     }
 
     // ─── FIRMAS DE APROBACIÓN ─────────────────────────────────────
+    const unidadJefe = limpiar(v.unidad_jefe || "");
+    cover(120, 473.6, 42, 7.1);
+    if (unidadJefe.length > 35) {
+      t(unidadJefe.substring(0, 35), 79, H - 480 + 1, 7);
+      t(unidadJefe.substring(35), 79, H - 487 + 1, 7);
+    } else {
+      t(unidadJefe, 30, H - 479 + 1, 5.5);
+    }
 
-    // Jefe inmediato
-    t(limpiar(v.jefe_nombre || ""), 93, H - 496.1 + 1, 7);
+    t(limpiar(v.jefe_nombre || ""), 93, H - 496 + 1, 7);
     cover(49.5, 503.8, 42, 7.1);
-    t(limpiar(v.jefe_cargo || "JEFE DE AREA"), 50, H - 510.9 + 1, 7);
-    // Sello jefe (columna izquierda: x=28 a x=252, centro aprox x=35)
+    t(limpiar(v.jefe_cargo || "JEFE DE AREA"), 50, H - 510 + 1, 7);
     if (v.jefe_nombre && v.fecha_resp_jefe) {
       sello(
         52,
@@ -255,7 +263,10 @@ export const generarPdfVacacion = async (req, res) => {
       );
     }
 
-    // Gerente
+    // Gerente - cubrir "esto cambia" y poner unidad real
+    cover(253, 473.6, 120, 7.1);
+    t(limpiar(v.gerente_cargo || ""), 254, H - 480.7 + 1, 5.5);
+
     t(limpiar(v.gerente_nombre || ""), 317, H - 496.1 + 1, 7);
     cover(273.5, 503.8, 42, 7.1);
     t(limpiar(v.gerente_cargo || "GERENTE"), 275, H - 510.9 + 1, 7);
@@ -268,20 +279,27 @@ export const generarPdfVacacion = async (req, res) => {
         v.fecha_resp_gerente,
       );
     }
+
     // ─── UATH ─────────────────────────────────────────────────────
     // Caja días tomados: x0=123.725, y=566.557
-    t(diasTomados, 126, H - 576, 7);
+    t(v.dias_solicitados, 126, H - 576, 7);
 
     // Caja días disponibles: x0=350.005, y=568.437
     t(diasDisponibles, 353, H - 576, 7);
 
     // ─── REVISADO POR ─────────────────────────────────────────────
-    // Cubrir nombre hardcodeado "ING. ANGELA LUISA MOREIRA ARTEAGA"
-    // x0=212.1 a x1=326.9, y0=664.0, y1=669.9
-    cover(211, 664.0, 118, 6);
+    cover(0, 664.0, 118, 6);
     t(limpiar(v.uath_nombre || ""), 213, H - 669.9 + 1, 7, true);
 
-    // Fecha certificación UATH
+    // ← Agregar cargo debajo del nombre
+    cover(0, 674.8, 152, 6);
+    t(
+      limpiar(v.uath_cargo || "RESPONSABLE DE LA UNIDAD DE TALENTO HUMANO"),
+      185,
+      H - 680.7 + 1,
+      6,
+    );
+
     if (v.fecha_resp_uath) t(v.fecha_resp_uath, 40, H - 650, 6);
 
     // Exportar

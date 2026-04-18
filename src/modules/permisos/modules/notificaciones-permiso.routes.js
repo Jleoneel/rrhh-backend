@@ -56,7 +56,7 @@ router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
     const { rows } = await pool.query(
       `
       SELECT
-        np.id, np.solicitud_id, np.tipo, np.leida, np.creada_en,
+        np.id, np.solicitud_id, np.tipo, np.leida, TO_CHAR(np.creada_en, 'YYYY-MM-DD HH24:MI:SS') AS creada_en,
         ps.fecha, ps.horas_solicitadas,
         sv.nombres AS servidor_nombre
       FROM core.notificacion_permiso np
@@ -79,7 +79,7 @@ router.get("/servidor", requireAuth, requireServidor, async (req, res) => {
     const { rows } = await pool.query(
       `
       SELECT
-        np.id, np.solicitud_id, np.tipo, np.leida, np.creada_en,
+        np.id, np.solicitud_id, np.tipo, np.leida, TO_CHAR(np.creada_en, 'YYYY-MM-DD HH24:MI:SS') AS creada_en,
         ps.fecha, ps.horas_solicitadas
       FROM core.notificacion_permiso np
       JOIN core.permiso_solicitud ps ON ps.id = np.solicitud_id
@@ -156,7 +156,7 @@ router.get(
         `
       SELECT
         np.id, np.vacacion_solicitud_id AS solicitud_id, 
-        np.tipo, np.leida, np.creada_en,
+        np.tipo, np.leida, TO_CHAR(np.creada_en, 'YYYY-MM-DD HH24:MI:SS') AS creada_en,
         vs.dias_solicitados,
         TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
@@ -190,7 +190,7 @@ router.get(
         `
       SELECT
         np.id, np.vacacion_solicitud_id AS solicitud_id,
-        np.tipo, np.leida, np.creada_en,
+        np.tipo, np.leida, TO_CHAR(np.creada_en, 'YYYY-MM-DD HH24:MI:SS') AS creada_en,
         vs.dias_solicitados,
         TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin
