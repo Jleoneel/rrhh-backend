@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { pool } from "../../../db.js";
+import { pool } from "../../../../db.js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 const limpiar = (texto = "") => {

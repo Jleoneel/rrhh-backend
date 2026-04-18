@@ -11,7 +11,7 @@ import bandejaRoutes from "./modules/bandeja.routes.js";
 import catalogosRoutes from "./modules/catalogos.routes.js";
 import notificacionesPermisoRoutes from "./modules/notificaciones-permiso.routes.js";
 import reporteRoutes from "./modules/reporte.routes.js";
-import vacacionesRoutes from "./modules/vacaciones.routes.js";
+import vacacionesRoutes from "./modules/vacaciones/vacaciones.routes.js";
 
 const router = Router();
 
