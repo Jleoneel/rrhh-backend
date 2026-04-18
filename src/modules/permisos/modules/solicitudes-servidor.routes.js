@@ -59,20 +59,26 @@ router.post("/solicitar", requireAuth, requireServidor, async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    //Validar duplicado AQUÍ dentro del try
+    const { fecha, hora_salida, hora_regreso } = req.body;
+
     const duplicadoR = await client.query(
-      `SELECT id FROM core.permiso_solicitud
-        WHERE servidor_id = $1
-      AND estado = 'PENDIENTE'
-        LIMIT 1`,
-      [servidor_id],
+      `
+  SELECT id FROM core.permiso_solicitud
+  WHERE servidor_id = $1
+    AND fecha = $2
+    AND estado NOT IN ('CANCELADO', 'RECHAZADO')
+    AND hora_salida < $4
+    AND hora_regreso > $3
+  LIMIT 1
+`,
+      [servidor_id, fecha, hora_salida, hora_regreso],
     );
 
     if (duplicadoR.rows.length > 0) {
       await client.query("ROLLBACK");
       return res.status(409).json({
         message:
-          "Tienes una solicitud pendiente. Espera la respuesta antes de solicitar otra.",
+          "Ya tienes un permiso en ese horario. Los permisos no pueden solaparse.",
       });
     }
     const saldoR = await client.query(
@@ -197,13 +203,13 @@ router.put("/:id/cancelar", requireAuth, requireServidor, async (req, res) => {
     }
 
     await client.query(
-      `
-      UPDATE core.permiso_solicitud 
-      SET estado = 'CANCELADO' 
-      WHERE id = $1
-    `,
+      `DELETE FROM core.notificacion_permiso WHERE solicitud_id = $1`,
       [id],
     );
+
+    await client.query(`DELETE FROM core.permiso_solicitud WHERE id = $1`, [
+      id,
+    ]);
 
     await client.query("COMMIT");
     return res.json({ message: "Solicitud cancelada correctamente" });

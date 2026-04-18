@@ -95,21 +95,26 @@ router.post(
 
       const { servidor_id, unidad_organica_id } = svR.rows[0];
 
-      //Validar duplicado
+      const { fecha, hora_salida, hora_regreso } = req.body;
+
       const duplicadoR = await client.query(
         `
-        SELECT id FROM core.permiso_solicitud
-          WHERE servidor_id = $1
-        AND estado = 'PENDIENTE'
-          LIMIT 1`,
-        [servidor_id],
+  SELECT id FROM core.permiso_solicitud
+  WHERE servidor_id = $1
+    AND fecha = $2
+    AND estado NOT IN ('CANCELADO', 'RECHAZADO')
+    AND hora_salida < $4
+    AND hora_regreso > $3
+  LIMIT 1
+`,
+        [servidor_id, fecha, hora_salida, hora_regreso],
       );
 
       if (duplicadoR.rows.length > 0) {
         await client.query("ROLLBACK");
         return res.status(409).json({
           message:
-            "Tienes una solicitud pendiente. Espera la respuesta antes de solicitar otra.",
+            "Ya tienes un permiso en ese horario. Los permisos no pueden solaparse.",
         });
       }
 
@@ -205,65 +210,83 @@ router.post(
 );
 
 // PUT /api/permisos/:id/cancelar-firmante
-router.put("/:id/cancelar-firmante", requireAuth, requireFirmante, async (req, res) => {
-  const { firmante_id } = req.user;
-  const { id } = req.params;
+router.put(
+  "/:id/cancelar-firmante",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const { firmante_id } = req.user;
+    const { id } = req.params;
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    // Obtener servidor vinculado al firmante
-    const svR = await client.query(`
+      // Obtener servidor vinculado al firmante
+      const svR = await client.query(
+        `
       SELECT sv.id AS servidor_id
       FROM core.firmante f
       JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
       WHERE f.id = $1
       LIMIT 1
-    `, [firmante_id]);
+    `,
+        [firmante_id],
+      );
 
-    if (!svR.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Servidor no encontrado" });
-    }
+      if (!svR.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Servidor no encontrado" });
+      }
 
-    const { servidor_id } = svR.rows[0];
+      const { servidor_id } = svR.rows[0];
 
-    const solicitudR = await client.query(`
+      const solicitudR = await client.query(
+        `
       SELECT id, estado, servidor_id 
       FROM core.permiso_solicitud 
       WHERE id = $1
-    `, [id]);
+    `,
+        [id],
+      );
 
-    if (!solicitudR.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Solicitud no encontrada" });
-    }
+      if (!solicitudR.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Solicitud no encontrada" });
+      }
 
-    const solicitud = solicitudR.rows[0];
+      const solicitud = solicitudR.rows[0];
 
-    if (solicitud.servidor_id !== servidor_id) {
-      await client.query("ROLLBACK");
-      return res.status(403).json({ message: "No autorizado" });
-    }
+      if (solicitud.servidor_id !== servidor_id) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ message: "No autorizado" });
+      }
 
-    if (solicitud.estado !== "PENDIENTE") {
-      await client.query("ROLLBACK");
-      return res.status(409).json({ message: "Solo se pueden cancelar solicitudes PENDIENTE" });
-    }
+      if (solicitud.estado !== "PENDIENTE") {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Solo se pueden cancelar solicitudes PENDIENTE" });
+      }
 
-    await client.query(`
+      await client.query(
+        `
       UPDATE core.permiso_solicitud SET estado = 'CANCELADO' WHERE id = $1
-    `, [id]);
+    `,
+        [id],
+      );
 
-    await client.query("COMMIT");
-    return res.json({ message: "Solicitud cancelada correctamente" });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error cancelando", error: err.message });
-  } finally {
-    client.release();
-  }
-});
+      await client.query("COMMIT");
+      return res.json({ message: "Solicitud cancelada correctamente" });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      return res
+        .status(500)
+        .json({ message: "Error cancelando", error: err.message });
+    } finally {
+      client.release();
+    }
+  },
+);
 
 export default router;

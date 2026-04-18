@@ -15,15 +15,26 @@ const router = Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    const { id } = req.params;
+
+    // Determinar la subcarpeta según el endpoint
+    const url = req.path;
+    let subdir = "base";
+    if (url.includes("subir-firma-jefe")) subdir = "jefe";
+    else if (url.includes("subir-firma-superior")) subdir = "superior";
+    else if (url.includes("subir-firma-uath")) subdir = "uath";
+
     const dir = path.resolve(
       process.env.UPLOADS_DIR || "uploads",
       "vacaciones",
+      `solicitud_${id}`,
+      subdir,
     );
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    cb(null, `vacacion_${req.params.id}_${Date.now()}.pdf`);
+    cb(null, `firmado_${Date.now()}.pdf`);
   },
 });
 
@@ -240,9 +251,9 @@ router.post(
 
       const pendienteR = await client.query(
         `
-      SELECT id FROM core.vacacion_solicitud
-      WHERE servidor_id = $1 AND estado NOT IN ('APROBADO', 'NEGADO') LIMIT 1
-    `,
+  SELECT id FROM core.vacacion_solicitud
+  WHERE servidor_id = $1 AND estado NOT IN ('APROBADO', 'NEGADO') LIMIT 1
+`,
         [servidor_id],
       );
 
@@ -251,6 +262,26 @@ router.post(
         return res.status(409).json({
           message:
             "Tienes una solicitud de vacaciones en proceso. Espera la respuesta antes de solicitar otra.",
+        });
+      }
+
+      const solapamientoR = await client.query(
+        `
+  SELECT id FROM core.vacacion_solicitud
+  WHERE servidor_id = $1
+    AND estado NOT IN ('NEGADO')
+    AND fecha_inicio <= $3
+    AND fecha_fin >= $2
+  LIMIT 1
+`,
+        [servidor_id, fecha_inicio, fecha_fin],
+      );
+
+      if (solapamientoR.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message:
+            "Ya tienes vacaciones aprobadas o en proceso en ese período de fechas.",
         });
       }
 
@@ -402,9 +433,9 @@ router.post(
 
       const pendienteR = await client.query(
         `
-      SELECT id FROM core.vacacion_solicitud
-      WHERE servidor_id = $1 AND estado NOT IN ('APROBADO', 'NEGADO') LIMIT 1
-    `,
+  SELECT id FROM core.vacacion_solicitud
+  WHERE servidor_id = $1 AND estado NOT IN ('APROBADO', 'NEGADO') LIMIT 1
+`,
         [servidor_id],
       );
 
@@ -413,6 +444,26 @@ router.post(
         return res.status(409).json({
           message:
             "Tienes una solicitud de vacaciones en proceso. Espera la respuesta antes de solicitar otra.",
+        });
+      }
+
+      const solapamientoR = await client.query(
+        `
+  SELECT id FROM core.vacacion_solicitud
+  WHERE servidor_id = $1
+    AND estado NOT IN ('NEGADO')
+    AND fecha_inicio <= $3
+    AND fecha_fin >= $2
+  LIMIT 1
+`,
+        [servidor_id, fecha_inicio, fecha_fin],
+      );
+
+      if (solapamientoR.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message:
+            "Ya tienes vacaciones aprobadas o en proceso en ese período de fechas.",
         });
       }
 
@@ -968,6 +1019,19 @@ router.post(
         uath_id = uathR.rows[0]?.id || null;
       }
 
+      // Agregar en confirmar-firma-jefe antes del UPDATE de estado:
+      const horas = parseFloat(solicitud.dias_solicitados) * 8;
+      await pool.query(
+        `UPDATE core.saldo_permiso SET horas_usadas = horas_usadas + $1, updated_at = NOW() WHERE servidor_id = $2`,
+        [horas, solicitud.servidor_id],
+      );
+
+      await pool.query(
+        `INSERT INTO core.permiso_movimiento (servidor_id, horas, tipo, descripcion, creado_por) 
+          VALUES ($1, $2, 'DESCUENTO', 'Vacaciones aprobadas por jefe inmediato', $3)`,
+        [solicitud.servidor_id, horas, firmante_id],
+      );
+
       await pool.query(
         `
       UPDATE core.vacacion_solicitud
@@ -1095,24 +1159,6 @@ router.post(
         return res
           .status(400)
           .json({ message: "Debes subir el PDF firmado antes de confirmar" });
-
-      // Descontar saldo
-      const horas = parseFloat(solicitud.dias_solicitados) * 8;
-      await pool.query(
-        `
-      UPDATE core.saldo_permiso SET horas_usadas = horas_usadas + $1, updated_at = NOW()
-      WHERE servidor_id = $2
-    `,
-        [horas, solicitud.servidor_id],
-      );
-
-      await pool.query(
-        `
-      INSERT INTO core.permiso_movimiento (servidor_id, horas, tipo, descripcion, creado_por)
-      VALUES ($1, $2, 'DESCUENTO', 'Vacaciones aprobadas por jefe superior', $3)
-    `,
-        [solicitud.servidor_id, horas, firmante_id],
-      );
 
       // Obtener UATH
       const uathR = await pool.query(`
