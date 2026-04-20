@@ -6,15 +6,15 @@ import {
   resetPasswordFirmante,
 } from "./firmantes.controller.js";
 
-import { requireAuth, requireAdmin } from "../../shared/middleware/auth.middleware.js";
+import { requireAuth, requireAdmin, requireFirmante } from "../../shared/middleware/auth.middleware.js";
 
 const router = Router();
 
 // SOLO ADMIN
-router.get("/uath", requireAuth, requireAdmin, listFirmantesUath);
-router.post("/uath", requireAuth, requireAdmin, createFirmanteUath);
+router.get("/uath", requireAuth, requireFirmante, listFirmantesUath);
+router.post("/uath", requireAuth,requireFirmante, createFirmanteUath);
 
-router.put("/:id", requireAuth, requireAdmin, updateFirmante);
-router.patch("/:id/reset-password", requireAuth, requireAdmin, resetPasswordFirmante);
+router.put("/:id", requireAuth, requireFirmante, updateFirmante);
+router.patch("/:id/reset-password", requireAuth, requireFirmante, resetPasswordFirmante);
 
 export default router;
