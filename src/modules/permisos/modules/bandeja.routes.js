@@ -20,7 +20,8 @@ router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
         pt.nombre AS tipo_permiso,
         sv.nombres AS servidor_nombre,
         sv.numero_identificacion AS cedula,
-        u.nombre AS unidad_organica
+        u.nombre AS unidad_organica,
+        ps.archivo_evidencia
       FROM core.permiso_solicitud ps
       JOIN core.permiso_tipo pt ON pt.id = ps.permiso_tipo_id
       JOIN core.servidor sv ON sv.id = ps.servidor_id

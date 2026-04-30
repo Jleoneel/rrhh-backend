@@ -5,8 +5,35 @@ import {
   requireFirmante,
 } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = Router();
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.resolve(
+      process.env.UPLOADS_DIR || "uploads",
+      "evidencias",
+    );
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `evidencia_${Date.now()}.pdf`);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== "application/pdf") {
+      return cb(new Error("Solo se permiten archivos PDF"));
+    }
+    cb(null, true);
+  },
+});
 
 // GET /api/permisos/mis-permisos-firmante
 router.get(
@@ -46,6 +73,7 @@ router.post(
   "/solicitar-firmante",
   requireAuth,
   requireFirmante,
+  upload.single("archivo_evidencia"),
   async (req, res) => {
     const { firmante_id } = req.user;
     const { permiso_tipo_id, fecha, hora_salida, hora_regreso, motivo } =
@@ -158,15 +186,24 @@ router.post(
       );
 
       const jefe_firmante_id = unidadR.rows[0]?.jefe_superior_id || null;
+      let archivoEvidencia = null;
+      if (req.file) {
+        const uploadsBase = path.resolve(process.env.UPLOADS_DIR || "uploads");
+        const rel = path
+          .relative(uploadsBase, req.file.path)
+          .replaceAll("\\", "/");
+        archivoEvidencia = `/uploads/${rel}`;
+      }
 
       const { rows } = await client.query(
         `
-      INSERT INTO core.permiso_solicitud
-        (servidor_id, permiso_tipo_id, unidad_organica_id, fecha,
-         hora_salida, hora_regreso, horas_solicitadas, motivo, jefe_firmante_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-    `,
+    INSERT INTO core.permiso_solicitud
+      (servidor_id, permiso_tipo_id, unidad_organica_id, fecha,
+       hora_salida, hora_regreso, horas_solicitadas, motivo, 
+       jefe_firmante_id, archivo_evidencia)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    RETURNING *
+  `,
         [
           servidor_id,
           permiso_tipo_id,
@@ -177,6 +214,7 @@ router.post(
           horas_solicitadas,
           motivo || null,
           jefe_firmante_id,
+          archivoEvidencia,
         ],
       );
 
