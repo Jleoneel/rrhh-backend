@@ -1,8 +1,10 @@
   import { Router } from "express";
   import { pool } from "../../db.js";
 
-  const router = Router();
+  import { resetPasswordServidor } from "./servidores.controller.js";
+import { requireAuth, requireFirmante } from "../../shared/middleware/auth.middleware.js";
 
+const router = Router();
  // GET /api/servidores/:cedula/situacion-actual
 router.get("/:cedula/situacion-actual", async (req, res) => {
   const { cedula } = req.params;
@@ -59,5 +61,7 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
   res.json(rows[0]);
 });
 
+// PATCH /api/servidores/:id/reset-password
+router.patch("/:id/reset-password", requireAuth, requireFirmante, resetPasswordServidor);
 
-  export default router;
+export default router;

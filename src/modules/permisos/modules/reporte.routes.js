@@ -36,7 +36,8 @@ router.get("/reporte", requireAuth, requireFirmante, async (req, res) => {
         sv.nombres AS servidor_nombre,
         sv.numero_identificacion AS cedula,
         u.nombre AS unidad_organica,
-        f.nombre AS jefe_nombre
+        f.nombre AS jefe_nombre,
+        ps.archivo_evidencia
       FROM core.permiso_solicitud ps
       JOIN core.permiso_tipo pt ON pt.id = ps.permiso_tipo_id
       JOIN core.servidor sv ON sv.id = ps.servidor_id
