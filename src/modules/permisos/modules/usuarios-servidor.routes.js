@@ -62,7 +62,9 @@ router.get(
         u.nombre AS unidad_organica,
         d.nombre AS denominacion_puesto,
         us.id AS usuario_id,
-        us.activo
+        us.activo,
+        sv.email,
+        TO_CHAR(sv.fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso
       FROM core.servidor sv
       LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
       LEFT JOIN core.puesto p ON p.id = ap.puesto_id

@@ -20,6 +20,7 @@ import distributivoRoutes from "./modules/distributivo/distributivo.routes.js";
 import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.js";
 import permisosRoutes from "./modules/permisos/permisos.routes.js"
 import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
+import distributivoposicionalRoutes from "./modules/distributivo/distributivo-posicional.routes.js";
 
 const app = express();
 const allowedOrigins = [
@@ -65,6 +66,7 @@ app.use("/api/firmantes", firmantesRoutes);
 app.use("/api/distributivo", distributivoRoutes);
 app.use("/api/firma-notificaciones", firmaNotificacionRoutes);
 app.use("/api/permisos", permisosRoutes);
+app.use("/api/distributivo", distributivoposicionalRoutes);
 
 
 const port = process.env.PORT || 3001;

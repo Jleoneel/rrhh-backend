@@ -1,11 +1,13 @@
-  import { Router } from "express";
-  import { pool } from "../../db.js";
-
-  import { resetPasswordServidor } from "./servidores.controller.js";
-import { requireAuth, requireFirmante } from "../../shared/middleware/auth.middleware.js";
+import { Router } from "express";
+import { pool } from "../../db.js";
+import { resetPasswordServidor } from "./servidores.controller.js";
+import {
+  requireAuth,
+  requireFirmante,
+} from "../../shared/middleware/auth.middleware.js";
 
 const router = Router();
- // GET /api/servidores/:cedula/situacion-actual
+// GET /api/servidores/:cedula/situacion-actual
 router.get("/:cedula/situacion-actual", async (req, res) => {
   const { cedula } = req.params;
 
@@ -57,11 +59,17 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
   `;
 
   const { rows } = await pool.query(sql, [cedula]);
-  if (!rows.length) return res.status(404).json({ message: "Servidor no encontrado" });
+  if (!rows.length)
+    return res.status(404).json({ message: "Servidor no encontrado" });
   res.json(rows[0]);
 });
 
 // PATCH /api/servidores/:id/reset-password
-router.patch("/:id/reset-password", requireAuth, requireFirmante, resetPasswordServidor);
+router.patch(
+  "/:id/reset-password",
+  requireAuth,
+  requireFirmante,
+  resetPasswordServidor,
+);
 
 export default router;

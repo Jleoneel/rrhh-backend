@@ -16,43 +16,50 @@ export function iniciarCronAcumularSaldos() {
       await client.query("BEGIN");
 
       // Buscar servidores cuyo día de ingreso coincide con hoy
-      const { rows } = await client.query(`
-        SELECT 
+      const { rows } = await client.query(
+        `SELECT 
           sp.id,
           sp.servidor_id,
           sp.horas_totales,
           sp.horas_usadas,
-          sp.fecha_ingreso
-        FROM core.saldo_permiso sp
+          sv.fecha_ingreso
+      FROM core.saldo_permiso sp
         JOIN core.servidor sv ON sv.id = sp.servidor_id
-        WHERE 
-          EXTRACT(DAY FROM sp.fecha_ingreso) = $1
-          AND sv.estado_servidor IN ('ACTIVO', 'NOMBRAMIENTO PROVISIONAL')
-          AND (sp.horas_totales - sp.horas_usadas) < 480
-      `, [diaHoy]);
+      WHERE 
+        EXTRACT(DAY FROM sv.fecha_ingreso) = $1
+        AND sv.estado_servidor IN ('ACTIVO', 'NOMBRAMIENTO PROVISIONAL')
+        AND (sp.horas_totales - sp.horas_usadas) < 480`,
+        [diaHoy],
+      );
 
       let acumulados = 0;
 
       for (const saldo of rows) {
         const nuevasHoras = Math.min(
-          saldo.horas_totales + 20, 
-          saldo.horas_usadas + 480
+          saldo.horas_totales + 20,
+          saldo.horas_usadas + 480,
         );
 
-        await client.query(`
+        await client.query(
+          `
           UPDATE core.saldo_permiso
           SET horas_totales = $1, updated_at = NOW()
           WHERE id = $2
-        `, [nuevasHoras, saldo.id]);
+        `,
+          [nuevasHoras, saldo.id],
+        );
 
-        await client.query(`
+        await client.query(
+          `
           INSERT INTO core.permiso_movimiento
             (servidor_id, horas, tipo, descripcion)
           VALUES ($1, 20, 'AJUSTE', $2)
-        `, [
-          saldo.servidor_id,
-          `Acumulación mensual - ${diaHoy}/${mesHoy}/${anioHoy}`
-        ]);
+        `,
+          [
+            saldo.servidor_id,
+            `Acumulación mensual - ${diaHoy}/${mesHoy}/${anioHoy}`,
+          ],
+        );
 
         acumulados++;
       }

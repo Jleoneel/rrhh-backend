@@ -7,6 +7,7 @@ import { pool } from "../../db.js";
 const router = Router();
 
 router.post("/login", loginByCedula);
+
 router.put("/cambiar-password", requireAuth, cambiarPassword);
 // POST /api/auth/crear-cuentas-masivo
 router.post(

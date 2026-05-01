@@ -31,10 +31,10 @@ router.get("/saldos", requireAuth, requireFirmante, async (req, res) => {
 });
 
 router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
-  const { servidor_id, dias, descripcion, fecha_ingreso } = req.body;
+  const { servidor_id, dias, descripcion } = req.body;
 
-  if (!servidor_id || !dias || !fecha_ingreso) {
-    return res.status(400).json({ message: "servidor_id, dias y fecha_ingreso son requeridos" });
+  if (!servidor_id || !dias) {
+    return res.status(400).json({ message: "servidor_id" });
   }
 
   const horas_totales = parseFloat(dias) * 8;
@@ -43,16 +43,15 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const { rows } = await client.query(`
-      INSERT INTO core.saldo_permiso (servidor_id, horas_totales, fecha_ingreso)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (servidor_id)
+  const { rows } = await client.query(`
+    INSERT INTO core.saldo_permiso (servidor_id, horas_totales, fecha_ingreso)
+      VALUES ($1, $2, (SELECT fecha_ingreso FROM core.servidor WHERE id = $1))
+    ON CONFLICT (servidor_id)
       DO UPDATE SET 
-        horas_totales = LEAST(saldo_permiso.horas_totales + $2, 480),
-        fecha_ingreso = $3,
-        updated_at = NOW()
-      RETURNING *
-    `, [servidor_id, horas_totales, fecha_ingreso]);
+    horas_totales = LEAST(saldo_permiso.horas_totales + $2, 480),
+    updated_at = NOW()
+    RETURNING *`, 
+    [servidor_id, horas_totales]);
 
     await client.query(`
       INSERT INTO core.permiso_movimiento
