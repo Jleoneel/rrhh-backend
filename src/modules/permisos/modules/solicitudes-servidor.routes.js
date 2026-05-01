@@ -13,9 +13,12 @@ const router = Router();
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    const servidor_id =
+      req.user?.servidor_id || req.user?.firmante_id || "unknown";
     const dir = path.resolve(
       process.env.UPLOADS_DIR || "uploads",
       "evidencias",
+      `servidor_${servidor_id}`,
     );
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
@@ -154,7 +157,7 @@ router.post(
           .replaceAll("\\", "/");
         archivoEvidencia = `/uploads/${rel}`;
       }
-      
+
       const { rows } = await client.query(
         `
     INSERT INTO core.permiso_solicitud
