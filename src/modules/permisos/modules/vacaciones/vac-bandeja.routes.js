@@ -57,7 +57,8 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
         sv.nombres AS servidor_nombre,
         sv.numero_identificacion AS cedula,
         u.nombre AS unidad_organica,
-        fj.nombre AS jefe_nombre
+        fj.nombre AS jefe_nombre,
+        vs.archivo_uath
       FROM core.vacacion_solicitud vs
       JOIN core.servidor sv ON sv.id = vs.servidor_id
       LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'

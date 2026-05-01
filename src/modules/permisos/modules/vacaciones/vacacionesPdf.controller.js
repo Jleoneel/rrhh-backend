@@ -24,10 +24,9 @@ const limpiar = (texto = "") => {
     .trim();
 };
 
-export const generarPdfVacacion = async (req, res) => {
+// ─── FUNCIÓN INTERNA COMPARTIDA ───────────────────────────────
+const _generarPdfBytes = async (id) => {
   try {
-    const { id } = req.params;
-
     const result = await pool.query(
       `
       SELECT
@@ -85,9 +84,8 @@ export const generarPdfVacacion = async (req, res) => {
     );
 
     if (!result.rows.length) {
-      return res.status(404).json({ message: "Solicitud no encontrada" });
+      throw new Error("Solicitud no encontrada");
     }
-
     const v = result.rows[0];
     const uath_nombre = v.uath_nombre || v.uath_nombre_fallback || "";
     const uath_cargo = v.uath_cargo || v.uath_cargo_fallback || "";
@@ -146,16 +144,16 @@ export const generarPdfVacacion = async (req, res) => {
     //Nombre de la Unidad a la que pertenece
     t(v.unidad_organica || "", 168, H - 139 + 1, 7);
 
-    // Nombre servidor 
+    // Nombre servidor
     t(v.servidor_nombre || "", 218, H - 161, 8);
 
-    // Cédula 
+    // Cédula
     t(v.cedula || "", 93, H - 186 + 1, 8);
 
     // Cargo
     t(limpiar(v.denominacion_puesto || ""), 224, H - 186 + 1, 7);
 
-    // SOLICITUD DE DÍAS 
+    // SOLICITUD DE DÍAS
     cover(99, 217.5, 10, 6.5);
     t(String(v.dias_solicitados), 102, H - 222.5 + 1, 8);
 
@@ -163,7 +161,7 @@ export const generarPdfVacacion = async (req, res) => {
     cover(245, 217, 72, 6.5);
     t(`${v.fecha_inicio} HASTA EL ${v.fecha_fin}`, 248, H - 222.5 + 1, 8);
 
-    // TIPO DE SOLICITUD 
+    // TIPO DE SOLICITUD
     if (v.tipo === "VACACION_PROGRAMADA") {
       t("X", 166, H - 263, 8, true);
     } else {
@@ -175,7 +173,7 @@ export const generarPdfVacacion = async (req, res) => {
     const tel = [v.telefono_movil].filter(Boolean).join(" / ");
     t(tel, 450, H - 332, 7);
 
-    //AUTORIZACIÓN 
+    //AUTORIZACIÓN
     if (aprobado) t("X", 108, H - 403, 9, true);
     if (negado) t("X", 216, H - 407, 9, true);
 
@@ -187,7 +185,7 @@ export const generarPdfVacacion = async (req, res) => {
       if (obs.length > 100) t(obs.substring(100, 150), 301, H - 415.2 + 1, 7);
     }
 
-    //FIRMAS DE APROBACIÓN 
+    //FIRMAS DE APROBACIÓN
     const unidadJefe = limpiar(v.unidad_jefe || "");
     cover(120, 473.6, 42, 7.1);
     if (unidadJefe.length > 35) {
@@ -205,7 +203,7 @@ export const generarPdfVacacion = async (req, res) => {
     cover(273.5, 503.8, 42, 7.1);
     t(limpiar(v.gerente_cargo || ""), 275, H - 510.9 + 1, 7);
 
-    // UATH 
+    // UATH
     // Caja días tomados
     t(v.dias_solicitados, 126, H - 576, 7);
 
@@ -242,16 +240,32 @@ export const generarPdfVacacion = async (req, res) => {
 
     if (v.fecha_resp_uath) t(v.fecha_resp_uath, 40, H - 650, 6);
 
-    // Exportar
+    // Exportar y retornar Buffer
     const pdfFinal = await pdfDoc.save();
+    return Buffer.from(pdfFinal);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// ─── ENDPOINT HTTP ────────────────────────────────────────────
+export const generarPdfVacacion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pdfBuffer = await _generarPdfBytes(id);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename=vacacion_${id}.pdf`,
     );
-    res.send(Buffer.from(pdfFinal));
+    res.send(pdfBuffer);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error generando PDF: " + error.message });
   }
+};
+
+// ─── PARA USO INTERNO (firma digital) ────────────────────────
+export const generarPdfVacacionBuffer = async (id) => {
+  return await _generarPdfBytes(id);
 };
