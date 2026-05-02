@@ -168,24 +168,38 @@ export const firmarPdfConP12 = async ({
       await pdfDoc.save({ addDefaultPage: false }),
     );
 
-    console.log(
-      `[SIGN] PDF preparado: ${pdfWithPlaceholderBuffer.length} bytes`,
-    );
-
     const p12Buffer = fs.readFileSync(p12Path);
-    console.log(`[SIGN] Certificado cargado: ${p12Buffer.length} bytes`);
 
     const signer = new P12Signer(p12Buffer, { passphrase: p12Password });
 
-    console.log(`[SIGN] Aplicando firma digital...`);
     const signedPdf = await signpdf.sign(pdfWithPlaceholderBuffer, signer);
 
-    console.log(`[SIGN] Documento firmado! Tamaño: ${signedPdf.length} bytes`);
     return signedPdf;
   } catch (error) {
     console.error(`[SIGN] Error critico:`, error.message);
     throw new Error(`Error en firma digital: ${error.message}`);
   }
+};
+
+// Agregar esta función exportada
+export const marcarAprobadoEnPdf = async (pdfInputBuffer) => {
+  const pdfDoc = await PDFDocument.load(pdfInputBuffer, {
+    ignoreEncryption: true,
+  });
+  const page = pdfDoc.getPages()[0];
+  const H = 841.89;
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Marcar X en AUTORIZADO
+  page.drawText("X", {
+    x: 108,
+    y: H - 403,
+    size: 9,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+  return Buffer.from(await pdfDoc.save({ addDefaultPage: false }));
 };
 
 export const POSICIONES_FIRMA = POSICIONES;
