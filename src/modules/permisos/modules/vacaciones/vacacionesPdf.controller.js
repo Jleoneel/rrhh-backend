@@ -174,7 +174,7 @@ const _generarPdfBytes = async (id) => {
     t(tel, 450, H - 332, 7);
 
     //AUTORIZACIÓN
-    if (aprobado) t("X", 108, H - 403, 9, true);
+    if (aprobado) t("X", 110, H - 405, 9, true);
     if (negado) t("X", 216, H - 407, 9, true);
 
     // Observación de negación
@@ -248,7 +248,7 @@ const _generarPdfBytes = async (id) => {
   }
 };
 
-// ─── ENDPOINT HTTP ────────────────────────────────────────────
+//ENDPOINT HTTP
 export const generarPdfVacacion = async (req, res) => {
   try {
     const { id } = req.params;
@@ -265,7 +265,7 @@ export const generarPdfVacacion = async (req, res) => {
   }
 };
 
-// ─── PARA USO INTERNO (firma digital) ────────────────────────
+//PARA USO INTERNO (firma digital)
 export const generarPdfVacacionBuffer = async (id) => {
   return await _generarPdfBytes(id);
 };

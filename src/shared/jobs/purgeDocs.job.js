@@ -10,10 +10,6 @@ async function run(dias = 30) {
   const projectRoot = path.resolve(__dirname, "../../");
   const uploadsBase = path.resolve(projectRoot, process.env.UPLOADS_DIR || "uploads");
 
-  console.log("CWD:", process.cwd());
-  console.log("DATABASE_URL:", process.env.DATABASE_URL ? "OK" : "MISSING");
-  console.log("uploadsBase:", uploadsBase);
-
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -24,10 +20,7 @@ async function run(dias = 30) {
       [dias],
     );
 
-    console.log("Candidatos a purga:", r.rowCount);
-
     if (r.rowCount === 0) {
-      console.log("Nada que purgar.");
       await client.query("COMMIT");
       return;
     }
@@ -40,7 +33,6 @@ async function run(dias = 30) {
       const rel = String(row.archivo_path || "").replace(/^\/uploads\//, "");
       const abs = path.join(uploadsBase, rel);
       const exists = fs.existsSync(abs);
-      console.log("->", row.id, exists ? "EXISTS" : "MISSING", abs);
 
       if (exists) {
         fs.unlinkSync(abs);
