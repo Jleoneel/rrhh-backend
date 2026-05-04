@@ -5,6 +5,7 @@ import {
   requireFirmante,
 } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
+import { enviarCorreo } from "../../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -12,7 +13,8 @@ const router = Router();
 router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
   const { firmante_id } = req.user;
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query(
+      `
       SELECT
         ps.id, ps.fecha, ps.hora_salida, ps.hora_regreso,
         ps.horas_solicitadas, ps.motivo, ps.estado,
@@ -30,10 +32,14 @@ router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
       ORDER BY 
         CASE ps.estado WHEN 'PENDIENTE' THEN 1 WHEN 'APROBADO' THEN 2 ELSE 3 END,
         ps.created_at DESC;
-    `, [firmante_id]);
+    `,
+      [firmante_id],
+    );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo bandeja", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error obteniendo bandeja", error: err.message });
   }
 });
 
@@ -44,7 +50,9 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
   const { firmante_id } = req.user;
 
   if (!["APROBADO", "RECHAZADO"].includes(estado)) {
-    return res.status(400).json({ message: "Estado debe ser APROBADO o RECHAZADO" });
+    return res
+      .status(400)
+      .json({ message: "Estado debe ser APROBADO o RECHAZADO" });
   }
 
   const client = await pool.connect();
@@ -58,24 +66,30 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
 
     if (!solicitudR.rows.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Solicitud no encontrada o no autorizado" });
+      return res
+        .status(404)
+        .json({ message: "Solicitud no encontrada o no autorizado" });
     }
 
     const solicitud = solicitudR.rows[0];
 
     if (solicitud.estado !== "PENDIENTE") {
       await client.query("ROLLBACK");
-      return res.status(409).json({ message: "Esta solicitud ya fue procesada" });
+      return res
+        .status(409)
+        .json({ message: "Esta solicitud ya fue procesada" });
     }
 
-    await client.query(`
+    await client.query(
+      `
       UPDATE core.permiso_solicitud
       SET estado = $1, observacion_jefe = $2, fecha_respuesta = NOW()
       WHERE id = $3
-    `, [estado, observacion || null, id]);
+    `,
+      [estado, observacion || null, id],
+    );
 
     if (estado === "APROBADO") {
-
       const tipoR = await client.query(
         `SELECT nombre FROM core.permiso_tipo WHERE id = $1`,
         [solicitud.permiso_tipo_id],
@@ -84,66 +98,118 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
       const tipoNombre = tipoR.rows[0]?.nombre || "";
 
       if (tipoNombre === "Personal") {
-        await client.query(`
+        await client.query(
+          `
           UPDATE core.saldo_permiso
           SET horas_usadas = horas_usadas + $1, updated_at = NOW()
           WHERE servidor_id = $2
-        `, [solicitud.horas_solicitadas, solicitud.servidor_id]);
+        `,
+          [solicitud.horas_solicitadas, solicitud.servidor_id],
+        );
 
-        await client.query(`
+        await client.query(
+          `
           INSERT INTO core.permiso_movimiento
             (servidor_id, solicitud_id, horas, tipo, descripcion, creado_por)
           VALUES ($1, $2, $3, 'DESCUENTO', 'Permiso personal aprobado', $4)
-            `,[solicitud.servidor_id, id, solicitud.horas_solicitadas, firmante_id]);
+            `,
+          [solicitud.servidor_id, id, solicitud.horas_solicitadas, firmante_id],
+        );
       }
     }
 
     await client.query("COMMIT");
 
     // Buscar si el servidor tiene firmante vinculado
-    const firmanteR = await pool.query(`
-      SELECT f.id AS firmante_id
-      FROM core.firmante f
-      JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
-      WHERE sv.id = $1
-      LIMIT 1
-    `, [solicitud.servidor_id]);
+    const firmanteR = await pool.query(
+      `
+  SELECT f.id AS firmante_id
+  FROM core.firmante f
+  JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
+  WHERE sv.id = $1
+  LIMIT 1
+`,
+      [solicitud.servidor_id],
+    );
 
     const firmanteVinculado = firmanteR.rows[0]?.firmante_id || null;
 
     if (firmanteVinculado) {
-      await pool.query(`
-        INSERT INTO core.notificacion_permiso (solicitud_id, firmante_id, tipo)
-        VALUES ($1, $2, $3)
-      `, [id, firmanteVinculado, estado]);
+      await pool.query(
+        `
+    INSERT INTO core.notificacion_permiso (solicitud_id, firmante_id, tipo)
+    VALUES ($1, $2, $3)
+  `,
+        [id, firmanteVinculado, estado],
+      );
 
       notifyCargoId(`permiso-firmante-${firmanteVinculado}`, {
         tipo: estado,
         solicitud_id: id,
-        mensaje: estado === "APROBADO"
-          ? "Tu permiso fue aprobado"
-          : "Tu permiso fue rechazado",
+        mensaje:
+          estado === "APROBADO"
+            ? "Tu permiso fue aprobado"
+            : "Tu permiso fue rechazado",
       });
     } else {
-      await pool.query(`
-        INSERT INTO core.notificacion_permiso (solicitud_id, servidor_id, tipo)
-        VALUES ($1, $2, $3)
-      `, [id, solicitud.servidor_id, estado]);
+      await pool.query(
+        `
+    INSERT INTO core.notificacion_permiso (solicitud_id, servidor_id, tipo)
+    VALUES ($1, $2, $3)
+  `,
+        [id, solicitud.servidor_id, estado],
+      );
 
       notifyCargoId(`permiso-servidor-${solicitud.servidor_id}`, {
         tipo: estado,
         solicitud_id: id,
-        mensaje: estado === "APROBADO"
-          ? "Tu permiso fue aprobado"
-          : "Tu permiso fue rechazado",
+        mensaje:
+          estado === "APROBADO"
+            ? "Tu permiso fue aprobado"
+            : "Tu permiso fue rechazado",
       });
     }
 
-    return res.json({ message: `Permiso ${estado.toLowerCase()} correctamente` });
+    // ← AGREGAR correo al servidor
+    const svEmailR = await pool.query(
+      `
+  SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
+`,
+      [solicitud.servidor_id],
+    );
 
+    const tipoPermisoR = await pool.query(
+      `
+  SELECT nombre FROM core.permiso_tipo WHERE id = $1
+`,
+      [solicitud.permiso_tipo_id],
+    );
+
+    if (svEmailR.rows[0]?.email) {
+      if (estado === "APROBADO") {
+        await enviarCorreo(svEmailR.rows[0].email, "permisoAprobado", {
+          servidor_nombre: svEmailR.rows[0].nombres,
+          tipo: tipoPermisoR.rows[0]?.nombre || "",
+          fecha: solicitud.fecha,
+          horas: `${solicitud.horas_solicitadas}h`,
+        });
+      } else {
+        await enviarCorreo(svEmailR.rows[0].email, "solicitudNegada", {
+          servidor_nombre: svEmailR.rows[0].nombres,
+          tipo: tipoPermisoR.rows[0]?.nombre || "Permiso",
+          observacion: observacion || "",
+        });
+      }
+    }
+
+    return res.json({
+      message: `Permiso ${estado.toLowerCase()} correctamente`,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error procesando solicitud", error: err.message });
+    return res
+      .status(500)
+      .json({ message: "Error procesando solicitud", error: err.message });
   } finally {
     client.release();
   }

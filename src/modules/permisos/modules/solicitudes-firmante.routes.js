@@ -8,6 +8,7 @@ import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { enviarCorreo } from "../../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -219,7 +220,7 @@ router.post(
       );
 
       await client.query("COMMIT");
-      //Notificar al jefe
+
       if (jefe_firmante_id) {
         await pool.query(
           `
@@ -234,6 +235,33 @@ router.post(
           solicitud_id: rows[0].id,
           mensaje: "Tienes una nueva solicitud de permiso pendiente",
         });
+
+        // ← Correo al jefe
+        const jefeR = await pool.query(
+          `
+    SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1
+  `,
+          [jefe_firmante_id],
+        );
+
+        const firmanteSvR = await pool.query(
+          `
+    SELECT sv.nombres FROM core.servidor sv
+    JOIN core.firmante f ON f.numero_identificacion = sv.numero_identificacion
+    WHERE f.id = $1
+  `,
+          [firmante_id],
+        );
+
+        if (jefeR.rows[0]?.email) {
+          await enviarCorreo(jefeR.rows[0].email, "nuevaSolicitudPermiso", {
+            jefe_nombre: jefeR.rows[0].nombre,
+            servidor_nombre: firmanteSvR.rows[0]?.nombres || "",
+            fecha,
+            tipo: tipoNombre,
+            horas: `${horas_solicitadas}h`,
+          });
+        }
       }
       return res.status(201).json(rows[0]);
     } catch (err) {

@@ -12,6 +12,7 @@ import {
 import { generarPdfVacacionBuffer } from "../vacaciones/vacacionesPdf.controller.js";
 import path from "path";
 import fs from "fs";
+import { enviarCorreo } from "../../../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -167,6 +168,32 @@ router.post(
         });
       }
 
+      // ← Correo al siguiente firmante
+      const notificarR = await pool.query(
+        `
+  SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1
+`,
+        [notificarId],
+      );
+
+      const svR = await pool.query(
+        `
+  SELECT sv.nombres FROM core.servidor sv WHERE sv.id = $1
+`,
+        [solicitud.servidor_id],
+      );
+
+      if (notificarR.rows[0]?.email) {
+        await enviarCorreo(notificarR.rows[0].email, "nuevaSolicitudVacacion", {
+          jefe_nombre: notificarR.rows[0].nombre,
+          servidor_nombre: svR.rows[0]?.nombres || "",
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+          dias: solicitud.dias_solicitados,
+          tipo: solicitud.tipo,
+        });
+      }
+
       return res.json({
         message: "Solicitud firmada y enviada al siguiente paso",
       });
@@ -296,6 +323,31 @@ router.post(
           es_vacacion: true,
         });
       }
+      // ← Correo a UATH
+      const uathEmailR = await pool.query(
+        `
+  SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1
+`,
+        [uath_id],
+      );
+
+      const svR2 = await pool.query(
+        `
+  SELECT sv.nombres FROM core.servidor sv WHERE sv.id = $1
+`,
+        [solicitud.servidor_id],
+      );
+
+      if (uathEmailR.rows[0]?.email) {
+        await enviarCorreo(uathEmailR.rows[0].email, "nuevaSolicitudVacacion", {
+          jefe_nombre: uathEmailR.rows[0].nombre,
+          servidor_nombre: svR2.rows[0]?.nombres || "",
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+          dias: solicitud.dias_solicitados,
+          tipo: solicitud.tipo,
+        });
+      }
 
       return res.json({ message: "Solicitud firmada y enviada a UATH" });
     } catch (err) {
@@ -306,7 +358,7 @@ router.post(
   },
 );
 
-// ─── CONFIRMAR FIRMA UATH ─────────────────────────────────────
+// CONFIRMAR FIRMA UATH
 router.post(
   "/:id/confirmar-firma-uath",
   requireAuth,
@@ -341,12 +393,10 @@ router.post(
         solicitud.jefe_firmante_id === firmante_id ||
         solicitud.gerente_id === firmante_id
       )
-        return res
-          .status(403)
-          .json({
-            message:
-              "No puedes certificar una solicitud que ya aprobaste en pasos anteriores",
-          });
+        return res.status(403).json({
+          message:
+            "No puedes certificar una solicitud que ya aprobaste en pasos anteriores",
+        });
       if (solicitud.uath_id !== firmante_id)
         return res.status(403).json({ message: "No autorizado" });
       if (solicitud.estado !== "PENDIENTE_UATH")
@@ -356,12 +406,10 @@ router.post(
 
       const p12Path = await obtenerP12(firmante_id);
       if (!p12Path)
-        return res
-          .status(400)
-          .json({
-            message:
-              "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12",
-          });
+        return res.status(400).json({
+          message:
+            "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12",
+        });
 
       const p12FullPath = path.resolve(
         process.env.UPLOADS_DIR || "uploads",
@@ -465,14 +513,27 @@ router.post(
         });
       }
 
+      // ← Correo al servidor notificando aprobación
+const svEmailR = await pool.query(`
+  SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
+`, [solicitud.servidor_id]);
+
+if (svEmailR.rows[0]?.email) {
+  await enviarCorreo(svEmailR.rows[0].email, "solicitudAprobada", {
+    servidor_nombre: svEmailR.rows[0].nombres,
+    tipo: solicitud.tipo,
+    fecha_inicio: solicitud.fecha_inicio,
+    fecha_fin: solicitud.fecha_fin,
+    dias: solicitud.dias_solicitados,
+  });
+}
+
       return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
-      return res
-        .status(500)
-        .json({
-          message: "Error confirmando certificación",
-          error: err.message,
-        });
+      return res.status(500).json({
+        message: "Error confirmando certificación",
+        error: err.message,
+      });
     }
   },
 );
