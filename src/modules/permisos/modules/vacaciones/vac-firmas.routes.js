@@ -514,19 +514,22 @@ router.post(
       }
 
       // ← Correo al servidor notificando aprobación
-const svEmailR = await pool.query(`
+      const svEmailR = await pool.query(
+        `
   SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
-`, [solicitud.servidor_id]);
+`,
+        [solicitud.servidor_id],
+      );
 
-if (svEmailR.rows[0]?.email) {
-  await enviarCorreo(svEmailR.rows[0].email, "solicitudAprobada", {
-    servidor_nombre: svEmailR.rows[0].nombres,
-    tipo: solicitud.tipo,
-    fecha_inicio: solicitud.fecha_inicio,
-    fecha_fin: solicitud.fecha_fin,
-    dias: solicitud.dias_solicitados,
-  });
-}
+      if (svEmailR.rows[0]?.email) {
+        await enviarCorreo(svEmailR.rows[0].email, "solicitudAprobada", {
+          servidor_nombre: svEmailR.rows[0].nombres,
+          tipo: solicitud.tipo,
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+          dias: solicitud.dias_solicitados,
+        });
+      }
 
       return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
