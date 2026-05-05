@@ -21,6 +21,7 @@ import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.j
 import permisosRoutes from "./modules/permisos/permisos.routes.js"
 import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
 import distributivoposicionalRoutes from "./modules/distributivo/distributivo-posicional.routes.js";
+import "./shared/jobs/purgarFirmasIntermedias.job.js";
 
 const app = express();
 const allowedOrigins = [
