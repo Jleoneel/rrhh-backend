@@ -16,8 +16,8 @@ const transporter = nodemailer.createTransport({
 
 //  COLORES INSTITUCIONALES
 const COLORS = {
-  primary: "#1e40af",      // Azul institucional oscuro
-  primaryLight: "#3b82f6", // Azul claro
+  primary: "#1e40af",      
+  primaryLight: "#3b82f6", 
   secondary: "#059669",     // Verde institucional
   secondaryLight: "#10b981",// Verde claro
   danger: "#dc2626",        // Rojo para negaciones
@@ -47,7 +47,7 @@ const plantillas = {
         <!-- Header -->
         <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="https://www.hpvc.gob.ec/logo.png" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -141,7 +141,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.secondary} 0%, ${COLORS.secondaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="https://www.hpvc.gob.ec/logo.png" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -231,7 +231,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.secondary} 0%, ${COLORS.secondaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="https://www.hpvc.gob.ec/logo.png" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="http://186.47.77.45:8082/syshpvc" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -291,7 +291,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.danger} 0%, #ef4444 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="https://www.hpvc.gob.ec/logo.png" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -348,7 +348,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="https://www.hpvc.gob.ec/logo.png" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
