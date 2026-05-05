@@ -15,11 +15,11 @@ const POSICIONES = {
 };
 
 const POSICIONES_ACCION = {
-  elabora: { x: 42, y: 474, width: 160, height: 50, page: 1 },
-  registra_controla: { x: 386, y: 472, width: 155, height: 50, page: 1 },
-  revisa: { x: 209, y: 472, width: 160, height: 50, page: 1 },
-  aprueba_th: { x: 42, y: 58, width: 240, height: 50, page: 0 },
-  aprueba_autoridad: { x: 303, y: 58, width: 250, height: 50, page: 0 },
+  elabora: { x: 75, y: 500, width: 115, height: 50, page: 1 },
+  registra_controla: { x: 425, y: 500, width: 115, height: 50, page: 1 },
+  revisa: { x: 245, y: 500, width: 115, height: 50, page: 1 },
+  aprueba_th: { x: 90, y: 85, width: 115, height: 40, page: 0 },
+  aprueba_autoridad: { x: 350, y: 85, width: 115, height: 40, page: 0 },
 };
 
 export const firmarPdfAccionConP12 = async ({
