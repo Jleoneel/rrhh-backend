@@ -18,27 +18,31 @@ export function iniciarCronAcumularSaldos() {
       // Buscar servidores cuyo día de ingreso coincide con hoy
       const { rows } = await client.query(
         `SELECT 
-          sp.id,
-          sp.servidor_id,
-          sp.horas_totales,
-          sp.horas_usadas,
-          sv.fecha_ingreso
-      FROM core.saldo_permiso sp
-        JOIN core.servidor sv ON sv.id = sp.servidor_id
-      WHERE 
-        EXTRACT(DAY FROM sv.fecha_ingreso) = $1
-        AND sv.estado_servidor IN ('ACTIVO', 'NOMBRAMIENTO PROVISIONAL')
-        AND (sp.horas_totales - sp.horas_usadas) < 480`,
+    sp.id,
+    sp.servidor_id,
+    sp.horas_totales,
+    sp.horas_usadas,
+    sv.fecha_ingreso
+  FROM core.saldo_permiso sp
+  JOIN core.servidor sv ON sv.id = sp.servidor_id
+  WHERE 
+    sv.fecha_ingreso IS NOT NULL
+    AND EXTRACT(DAY FROM sv.fecha_ingreso) = $1
+    AND sv.estado_servidor IN ('ACTIVO', 'NOMBRAMIENTO PROVISIONAL')
+    AND (sp.horas_totales - sp.horas_usadas) < 480`,
         [diaHoy],
       );
 
       let acumulados = 0;
 
       for (const saldo of rows) {
-        const nuevasHoras = Math.min(
-          saldo.horas_totales + 20,
-          saldo.horas_usadas + 480,
-        );
+        const horasTotales = parseFloat(saldo.horas_totales);
+        const horasUsadas = parseFloat(saldo.horas_usadas);
+        const disponibles = horasTotales - horasUsadas;
+        const nuevasHoras =
+          disponibles + 20 > 480
+            ? horasTotales + (480 - disponibles)
+            : horasTotales + 20;
 
         await client.query(
           `
