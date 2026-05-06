@@ -1,5 +1,8 @@
 import nodemailer from "nodemailer";
 
+const LOGO_URL =
+  process.env.LOGO_URL ||
+  "https://static.wixstatic.com/media/1e340b_5d822741e4b34742956a8816352a1bdb~mv2.png/v1/fill/w_308,h_160,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Image-empty-state.png";
 //  CONFIGURACIÓN
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "mail.hpvc.gob.ec",
@@ -16,15 +19,15 @@ const transporter = nodemailer.createTransport({
 
 //  COLORES INSTITUCIONALES
 const COLORS = {
-  primary: "#1e40af",      
-  primaryLight: "#3b82f6", 
-  secondary: "#059669",     // Verde institucional
-  secondaryLight: "#10b981",// Verde claro
-  danger: "#dc2626",        // Rojo para negaciones
-  warning: "#f59e0b",       // Amarillo para alertas
-  text: "#1f2937",          // Texto oscuro
-  textLight: "#6b7280",     // Texto gris
-  background: "#f8fafc",    // Fondo gris claro
+  primary: "#1e40af",
+  primaryLight: "#3b82f6",
+  secondary: "#059669",
+  secondaryLight: "#10b981",
+  danger: "#dc2626",
+  warning: "#f59e0b", 
+  text: "#1f2937", 
+  textLight: "#6b7280",
+  background: "#f8fafc",
   white: "#ffffff",
   border: "#e5e7eb",
 };
@@ -47,7 +50,7 @@ const plantillas = {
         <!-- Header -->
         <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -74,16 +77,24 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Servidor:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${servidor_nombre}</td>
               </tr>
-              ${cedula ? `
+              ${
+                cedula
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Cédula:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${cedula}</td>
-              </tr>` : ''}
-              ${unidad ? `
+              </tr>`
+                  : ""
+              }
+              ${
+                unidad
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Unidad:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${unidad}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Tipo:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo}</td>
@@ -96,11 +107,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horas:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${horas}</td>
               </tr>
-              ${motivo ? `
+              ${
+                motivo
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; vertical-align: top;">Motivo:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-size: 13px;">${motivo}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
             </table>
           </div>
           
@@ -141,7 +156,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.secondary} 0%, ${COLORS.secondaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -167,16 +182,24 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Servidor:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${servidor_nombre}</td>
               </tr>
-              ${cedula ? `
+              ${
+                cedula
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Cédula:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${cedula}</td>
-              </tr>` : ''}
-              ${unidad ? `
+              </tr>`
+                  : ""
+              }
+              ${
+                unidad
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Unidad:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${unidad}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Tipo:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo === "VACACION_PROGRAMADA" ? "Vacación Programada" : "Permiso con Cargo"}</td>
@@ -189,11 +212,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${dias} días</td>
               </tr>
-              ${motivo ? `
+              ${
+                motivo
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; vertical-align: top;">Observación:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-size: 13px;">${motivo}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
             </table>
           </div>
           
@@ -231,7 +258,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.secondary} 0%, ${COLORS.secondaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="http://186.47.77.45:8082/syshpvc" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -261,11 +288,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días aprobados:</td>
                 <td style="padding: 8px 0; color: ${COLORS.secondary}; font-weight: 700; font-size: 16px;">${dias} días</td>
               </tr>
-              ${aprobado_por ? `
+              ${
+                aprobado_por
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Aprobado por:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${aprobado_por}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
             </table>
           </div>
           
@@ -291,7 +322,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.danger} 0%, #ef4444 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -312,12 +343,16 @@ const plantillas = {
             <p style="margin: 0; color: ${COLORS.text}; line-height: 1.5;">${observacion || "No se especificó un motivo."}</p>
           </div>
           
-          ${negado_por ? `
+          ${
+            negado_por
+              ? `
           <div style="background: ${COLORS.background}; border-radius: 8px; padding: 12px; margin: 16px 0;">
             <p style="color: ${COLORS.textLight}; font-size: 12px; margin: 0;">
               Negado por: <strong>${negado_por}</strong>
             </p>
-          </div>` : ''}
+          </div>`
+              : ""
+          }
           
           <div style="background: ${COLORS.danger}10; border-radius: 8px; padding: 12px; margin-top: 20px; text-align: center;">
             <p style="color: ${COLORS.danger}; font-size: 12px; margin: 0;">
@@ -348,7 +383,7 @@ const plantillas = {
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
           <div style="margin-bottom: 16px;">
-            <img src="http://186.47.77.45:8082/syshpvc/" alt="Hospital Logo" style="height: 60px; width: auto;" />
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
           </div>
           <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
           <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
@@ -366,11 +401,15 @@ const plantillas = {
           
           <div style="background: ${COLORS.background}; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid ${COLORS.primary};">
             <table style="width: 100%; border-collapse: collapse;">
-              ${cedula ? `
+              ${
+                cedula
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Cédula:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${cedula}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Tipo:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo}</td>
@@ -383,11 +422,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horas aprobadas:</td>
                 <td style="padding: 8px 0; color: ${COLORS.secondary}; font-weight: 700; font-size: 14px;">${horas}</td>
               </tr>
-              ${aprobado_por ? `
+              ${
+                aprobado_por
+                  ? `
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Aprobado por:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${aprobado_por}</td>
-              </tr>` : ''}
+              </tr>`
+                  : ""
+              }
             </table>
           </div>
         </div>
