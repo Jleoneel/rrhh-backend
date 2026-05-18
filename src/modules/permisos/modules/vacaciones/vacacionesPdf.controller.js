@@ -24,7 +24,7 @@ const limpiar = (texto = "") => {
     .trim();
 };
 
-// ─── FUNCIÓN INTERNA COMPARTIDA ───────────────────────────────
+//  FUNCIÓN INTERNA COMPARTIDA
 const _generarPdfBytes = async (id) => {
   try {
     const result = await pool.query(

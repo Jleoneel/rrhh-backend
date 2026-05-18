@@ -10,9 +10,7 @@ import vacFirmasRoutes from "./vac-firmas.routes.js";
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════
-// RUTAS ESPECÍFICAS PRIMERO (antes de /:id)
-// ═══════════════════════════════════════════════════════════════
+// RUTAS ESPECÍFICAS PRIMERO (
 router.use(vacSolicitudesServidorRoutes);
 router.use(vacSolicitudesFirmanteRoutes);
 router.use(vacBandejaRoutes);
@@ -20,9 +18,7 @@ router.use(vacBandejaRoutes);
 // PDF base
 router.get("/:id/pdf-vacacion", generarPdfVacacion);
 
-// ═══════════════════════════════════════════════════════════════
 // RUTAS CON PARÁMETROS
-// ═══════════════════════════════════════════════════════════════
 router.use(vacFirmasRoutes);
 
 export default router;

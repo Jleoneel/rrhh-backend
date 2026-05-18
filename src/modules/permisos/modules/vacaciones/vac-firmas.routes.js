@@ -369,76 +369,44 @@ router.post(
     const { password } = req.body;
 
     if (!password)
-      return res
-        .status(400)
-        .json({ message: "Contraseña del token requerida" });
+      return res.status(400).json({ message: "Contraseña del token requerida" });
 
     try {
-      const { rows } = await pool.query(
-        `
-      SELECT vs.*, f.nombre AS uath_nombre, c.nombre AS uath_cargo
-      FROM core.vacacion_solicitud vs
-      JOIN core.firmante f ON f.id = vs.uath_id
-      JOIN core.cargo c ON c.id = f.cargo_id
-      WHERE vs.id = $1
-    `,
-        [id],
-      );
+      const { rows } = await pool.query(`
+        SELECT vs.*, f.nombre AS uath_nombre, c.nombre AS uath_cargo
+        FROM core.vacacion_solicitud vs
+        JOIN core.firmante f ON f.id = vs.uath_id
+        JOIN core.cargo c ON c.id = f.cargo_id
+        WHERE vs.id = $1
+      `, [id]);
 
       if (!rows.length)
         return res.status(404).json({ message: "Solicitud no encontrada" });
       const solicitud = rows[0];
 
-      if (
-        solicitud.jefe_firmante_id === firmante_id ||
-        solicitud.gerente_id === firmante_id
-      )
-        return res.status(403).json({
-          message:
-            "No puedes certificar una solicitud que ya aprobaste en pasos anteriores",
-        });
+      if (solicitud.jefe_firmante_id === firmante_id || solicitud.gerente_id === firmante_id)
+        return res.status(403).json({ message: "No puedes certificar una solicitud que ya aprobaste en pasos anteriores" });
       if (solicitud.uath_id !== firmante_id)
         return res.status(403).json({ message: "No autorizado" });
       if (solicitud.estado !== "PENDIENTE_UATH")
-        return res
-          .status(409)
-          .json({ message: "Esta solicitud no está pendiente de UATH" });
+        return res.status(409).json({ message: "Esta solicitud no está pendiente de UATH" });
 
       const p12Path = await obtenerP12(firmante_id);
       if (!p12Path)
-        return res.status(400).json({
-          message:
-            "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12",
-        });
+        return res.status(400).json({ message: "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12" });
 
       const p12FullPath = path.resolve(
         process.env.UPLOADS_DIR || "uploads",
         p12Path.replace("/uploads/", ""),
       );
 
-      // ← PRIMERO actualizar estado a APROBADO
-      await pool.query(
-        `
-      UPDATE core.vacacion_solicitud
-      SET estado = 'APROBADO', fecha_respuesta_uath = NOW(), uath_id = $1
-      WHERE id = $2
-    `,
-        [firmante_id, id],
-      );
-
       // ← Tomar PDF del paso anterior como base
       let pdfBuffer;
       if (solicitud.archivo_superior) {
-        const filePath = path.resolve(
-          process.env.UPLOADS_DIR || "uploads",
-          solicitud.archivo_superior.replace("/uploads/", ""),
-        );
+        const filePath = path.resolve(process.env.UPLOADS_DIR || "uploads", solicitud.archivo_superior.replace("/uploads/", ""));
         pdfBuffer = fs.readFileSync(filePath);
       } else if (solicitud.archivo_jefe) {
-        const filePath = path.resolve(
-          process.env.UPLOADS_DIR || "uploads",
-          solicitud.archivo_jefe.replace("/uploads/", ""),
-        );
+        const filePath = path.resolve(process.env.UPLOADS_DIR || "uploads", solicitud.archivo_jefe.replace("/uploads/", ""));
         pdfBuffer = fs.readFileSync(filePath);
       } else {
         pdfBuffer = await generarPdfVacacionBuffer(id);
@@ -447,6 +415,7 @@ router.post(
       // ← Marcar checkbox AUTORIZADO antes de firmar
       pdfBuffer = await marcarAprobadoEnPdf(pdfBuffer);
 
+      // ← PRIMERO firmar — si falla la contraseña, el estado NO cambia
       let signedPdf;
       try {
         signedPdf = await firmarPdfConP12({
@@ -458,34 +427,29 @@ router.post(
           posicion: "uath",
         });
       } catch (err) {
-        if (
-          err.message?.includes("password") ||
-          err.message?.includes("passphrase")
-        ) {
-          return res
-            .status(400)
-            .json({ message: "Contraseña del token incorrecta" });
-        }
+        if (err.message?.includes("password") || err.message?.includes("passphrase"))
+          return res.status(400).json({ message: "Contraseña del token incorrecta" });
         throw err;
       }
 
+      // ← LUEGO actualizar estado a APROBADO (solo si la firma fue exitosa)
+      await pool.query(`
+        UPDATE core.vacacion_solicitud
+        SET estado = 'APROBADO', fecha_respuesta_uath = NOW(), uath_id = $1
+        WHERE id = $2
+      `, [firmante_id, id]);
+
       const archivoPath = guardarPdfFirmado(signedPdf, id, "uath");
 
-      await pool.query(
-        `
-      UPDATE core.vacacion_solicitud SET archivo_uath = $1 WHERE id = $2
-    `,
-        [archivoPath, id],
-      );
+      await pool.query(`
+        UPDATE core.vacacion_solicitud SET archivo_uath = $1 WHERE id = $2
+      `, [archivoPath, id]);
 
-      const firmanteVinculadoR = await pool.query(
-        `
-      SELECT f.id AS firmante_id FROM core.firmante f
-      JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
-      WHERE sv.id = $1 LIMIT 1
-    `,
-        [solicitud.servidor_id],
-      );
+      const firmanteVinculadoR = await pool.query(`
+        SELECT f.id AS firmante_id FROM core.firmante f
+        JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
+        WHERE sv.id = $1 LIMIT 1
+      `, [solicitud.servidor_id]);
 
       const firmanteVinculado = firmanteVinculadoR.rows[0]?.firmante_id || null;
 
@@ -495,10 +459,8 @@ router.post(
           [id, firmanteVinculado],
         );
         notifyCargoId(`permiso-firmante-${firmanteVinculado}`, {
-          tipo: "APROBADO",
-          vacacion_id: id,
-          mensaje: "Tus vacaciones fueron aprobadas y certificadas",
-          es_vacacion: true,
+          tipo: "APROBADO", vacacion_id: id,
+          mensaje: "Tus vacaciones fueron aprobadas y certificadas", es_vacacion: true,
         });
       } else {
         await pool.query(
@@ -506,20 +468,14 @@ router.post(
           [id, solicitud.servidor_id],
         );
         notifyCargoId(`permiso-servidor-${solicitud.servidor_id}`, {
-          tipo: "APROBADO",
-          vacacion_id: id,
-          mensaje: "Tus vacaciones fueron aprobadas y certificadas",
-          es_vacacion: true,
+          tipo: "APROBADO", vacacion_id: id,
+          mensaje: "Tus vacaciones fueron aprobadas y certificadas", es_vacacion: true,
         });
       }
 
-      // ← Correo al servidor notificando aprobación
-      const svEmailR = await pool.query(
-        `
-  SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
-`,
-        [solicitud.servidor_id],
-      );
+      const svEmailR = await pool.query(`
+        SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
+      `, [solicitud.servidor_id]);
 
       if (svEmailR.rows[0]?.email) {
         await enviarCorreo(svEmailR.rows[0].email, "solicitudAprobada", {
@@ -533,10 +489,7 @@ router.post(
 
       return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
-      return res.status(500).json({
-        message: "Error confirmando certificación",
-        error: err.message,
-      });
+      return res.status(500).json({ message: "Error confirmando certificación", error: err.message });
     }
   },
 );
