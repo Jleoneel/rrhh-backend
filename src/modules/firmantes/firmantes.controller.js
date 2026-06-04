@@ -1,8 +1,10 @@
 import bcrypt from "bcrypt";
 import { pool } from "../../db.js";
+import { CARGO_NOMBRES } from "../../shared/constants/cargos.js";
 
 const CARGOS_PERMITIDOS = [
-  "ASISTENTE DE LA UATH",
+  CARGO_NOMBRES.ASISTENTE_UATH,
+  CARGO_NOMBRES.AUXILIAR_UATH,
   "RESPONSABLE DE LA UATH",
   "JEFE DE AREA",
   "ADMINISTRADOR DEL SISTEMA",

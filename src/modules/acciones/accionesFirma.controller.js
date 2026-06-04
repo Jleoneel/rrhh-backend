@@ -1,6 +1,7 @@
 import path from "path";
 import { withTransaction } from "../../db.js";
 import { notifyCargoId } from "../../shared/utils/sseManager.js";
+import { cargoPuedeActuarComo } from "../../shared/constants/cargos.js";
 
 export async function subirFirmado(req, res) {
   const { accionId } = req.params;
@@ -45,7 +46,7 @@ export async function subirFirmado(req, res) {
       }
 
       // 2) Validar cargo
-      if (firmaPend.cargo_id !== cargo_id) {
+      if (!cargoPuedeActuarComo(cargo_id, firmaPend.cargo_id)) {
         return {
           status: 403,
           body: {

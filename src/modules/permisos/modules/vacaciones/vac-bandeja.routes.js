@@ -149,7 +149,7 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
 
       const uathR = await client.query(`
         SELECT f.id FROM core.firmante f JOIN core.cargo c ON c.id = f.cargo_id
-        WHERE c.nombre IN ('ASISTENTE DE LA UATH', 'RESPONSABLE DE LA UATH') AND f.activo = true
+        WHERE c.nombre IN ('ASISTENTE DE LA UATH', 'AUXILIAR DE LA UATH', 'RESPONSABLE DE LA UATH') AND f.activo = true
         ORDER BY c.nombre DESC LIMIT 1
       `);
       const uath_id = uathR.rows[0]?.id || null;

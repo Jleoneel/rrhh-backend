@@ -8,10 +8,14 @@ import {
 import { uploadFirma, uploadAnexo } from "../../shared/utils/upload.js";
 import { subirFirmado } from "../acciones/accionesFirma.controller.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
+import {
+  CARGO_IDS,
+  cargoPuedeActuarComo,
+} from "../../shared/constants/cargos.js";
 
 const router = Router();
 const upload = uploadFirma();
-const CARGO_ASISTENTE_UATH = "78de3b9c-a2f4-41ed-9823-bb72ee56d1f4";
+const CARGO_ASISTENTE_UATH = CARGO_IDS.ASISTENTE_UATH;
 const uploadAnx = uploadAnexo();
 
 // Función para interpretar valores booleanos de forma flexible
@@ -80,7 +84,7 @@ export async function requirePuedeFirmarPaso(req, res, next) {
 
   const pend = rows[0];
 
-  if (pend.cargo_id !== cargo_id) {
+  if (!cargoPuedeActuarComo(cargo_id, pend.cargo_id)) {
     return res.status(403).json({
       message: "No autorizado para firmar este paso",
       orden_pendiente: pend.orden,

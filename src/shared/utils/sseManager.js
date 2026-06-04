@@ -1,3 +1,5 @@
+import { CARGO_IDS } from "../constants/cargos.js";
+
 const connections = new Map();
 
 export function addConnection(cargoId, res) {
@@ -14,8 +16,20 @@ export function removeConnection(cargoId, res) {
 }
 
 export function notifyCargoId(cargoId, data) {
-  const clients = connections.get(cargoId) || [];
-  clients.forEach((res) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const cargoIds = new Set([cargoId]);
+
+  if (cargoId === CARGO_IDS.ASISTENTE_UATH) {
+    cargoIds.add(CARGO_IDS.AUXILIAR_UATH);
+  }
+
+  if (cargoId === `firma-${CARGO_IDS.ASISTENTE_UATH}`) {
+    cargoIds.add(`firma-${CARGO_IDS.AUXILIAR_UATH}`);
+  }
+
+  cargoIds.forEach((id) => {
+    const clients = connections.get(id) || [];
+    clients.forEach((res) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    });
   });
 }

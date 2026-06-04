@@ -16,6 +16,7 @@ import path from "path";
 import fs from "fs";
 import { pool } from "../../db.js";
 import { notifyCargoId } from "../../shared/utils/sseManager.js";
+import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
 
 const router = Router();
 router.get("/pendientes", requireAuth, misFirmasPendientes);
@@ -132,12 +133,12 @@ router.post(
         SELECT tipo_accion_id FROM core.accion_personal WHERE id = $1
       ) AND taf.rol_firma = af.rol_firma AND taf.orden = af.orden
       WHERE af.accion_id = $1
-        AND af.cargo_id = $2
+        AND af.cargo_id = ANY($2)
         AND af.estado = 'PENDIENTE'
       ORDER BY af.orden ASC
       LIMIT 1
     `,
-        [accionId, cargo_id],
+        [accionId, cargoIdsEquivalentes(cargo_id)],
       );
 
       if (!firmaR.rows.length)

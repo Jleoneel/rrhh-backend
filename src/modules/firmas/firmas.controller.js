@@ -1,6 +1,7 @@
 import { pool } from "../../db.js";
 import fs from "fs";
 import path from "path";
+import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
 
 // Controlador para gestionar las firmas de las acciones personales
 export async function misFirmasPendientes(req, res) {
@@ -21,11 +22,11 @@ export async function misFirmasPendientes(req, res) {
     JOIN core.accion_personal ap ON ap.id = af.accion_id
     JOIN core.tipo_accion ta ON ta.id = ap.tipo_accion_id
     WHERE af.estado = 'PENDIENTE'
-      AND af.cargo_id = $1
+      AND af.cargo_id = ANY($1)
     ORDER BY ap.fecha_elaboracion DESC, af.orden ASC;
   `;
 
-  const r = await pool.query(q, [cargo_id]);
+  const r = await pool.query(q, [cargoIdsEquivalentes(cargo_id)]);
   return res.json({ count: r.rowCount, items: r.rows });
 }
 
@@ -203,5 +204,4 @@ export async function firmaPendienteAccion(req, res) {
 
   return res.json(r.rows[0]);
 }
-
 

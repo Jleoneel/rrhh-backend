@@ -1,4 +1,5 @@
 import { pool } from "../../db.js";
+import { cargoPuedeActuarComo } from "../constants/cargos.js";
 
 export function requireCargo(cargosPermitidos = []) {
   return async (req, res, next) => {
@@ -24,7 +25,11 @@ export function requireCargo(cargosPermitidos = []) {
 
       const cargoId = rows[0].cargo_id;
 
-      if (!cargosPermitidos.includes(cargoId)) {
+      const autorizado = cargosPermitidos.some((cargoPermitido) =>
+        cargoPuedeActuarComo(cargoId, cargoPermitido),
+      );
+
+      if (!autorizado) {
         return res.status(403).json({
           message: "No autorizado para crear acciones de personal",
         });

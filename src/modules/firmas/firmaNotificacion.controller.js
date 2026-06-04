@@ -1,5 +1,6 @@
 import { pool } from "../../db.js";
 import { addConnection, removeConnection } from "../../shared/utils/sseManager.js";
+import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
 
 // Abre la conexión SSE para el cargo logueado
 export function stream(req, res) {
@@ -40,9 +41,9 @@ export async function listar(req, res) {
          ap.codigo_elaboracion
        FROM core.notificacion_firma nf
        JOIN core.accion_personal ap ON ap.id = nf.accion_id
-       WHERE nf.cargo_id = $1 AND nf.leida = false
+       WHERE nf.cargo_id = ANY($1) AND nf.leida = false
        ORDER BY nf.creada_en DESC;`,
-      [cargo_id],
+      [cargoIdsEquivalentes(cargo_id)],
     );
 
     return res.json(rows);
@@ -64,8 +65,8 @@ export async function marcarLeida(req, res) {
     await pool.query(
       `UPDATE core.notificacion_firma
        SET leida = true
-       WHERE id = $1 AND cargo_id = $2;`,
-      [id, cargo_id],
+       WHERE id = $1 AND cargo_id = ANY($2);`,
+      [id, cargoIdsEquivalentes(cargo_id)],
     );
 
     return res.json({ ok: true });
@@ -86,8 +87,8 @@ export async function marcarTodasLeidas(req, res) {
     await pool.query(
       `UPDATE core.notificacion_firma
        SET leida = true
-       WHERE cargo_id = $1 AND leida = false;`,
-      [cargo_id],
+       WHERE cargo_id = ANY($1) AND leida = false;`,
+      [cargoIdsEquivalentes(cargo_id)],
     );
 
     return res.json({ ok: true });
