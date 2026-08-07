@@ -77,7 +77,7 @@ const _generarPdfBytes = async (id) => {
       LEFT JOIN core.cargo cu ON cu.id = fu.cargo_id
       LEFT JOIN core.saldo_permiso sp ON sp.servidor_id = sv.id
       LEFT JOIN core.unidad_organica uj ON uj.jefe_id = vs.jefe_firmante_id
-      LEFT JOIN core.unidad_organica ug ON ug.jefe_superior_id = vs.gerente_id
+      LEFT JOIN core.unidad_organica ug ON ug.jefe_id = vs.gerente_id
       WHERE vs.id = $1 LIMIT 1
     `,
       [id],
@@ -198,6 +198,18 @@ const _generarPdfBytes = async (id) => {
     t(limpiar(v.jefe_nombre || ""), 93, H - 496 + 1, 7);
     cover(49.5, 503.8, 42, 7.1);
     t(limpiar(v.jefe_cargo || "JEFE DE AREA"), 50, H - 510 + 1, 7);
+
+    // --- BLOQUE GERENTE / AUTORIDAD (derecha) ---
+    const unidadGerente = limpiar(v.unidad_gerente || "");
+    if (unidadGerente) {
+      cover(300, 473.6, 42, 7.1);
+      if (unidadGerente.length > 35) {
+        t(unidadGerente.substring(0, 35), 317, H - 480 + 1, 7);
+        t(unidadGerente.substring(35), 317, H - 487 + 1, 7);
+      } else {
+        t(unidadGerente, 305, H - 480 + 1, 5.5);
+      }
+    }
 
     t(limpiar(v.gerente_nombre || ""), 317, H - 496.1 + 1, 7);
     cover(273.5, 503.8, 42, 7.1);
