@@ -1,4 +1,4 @@
-import { CARGO_IDS } from "../constants/cargos.js";
+import { cargoIdsEquivalentes } from "../constants/cargos.js";
 
 const connections = new Map();
 
@@ -16,15 +16,13 @@ export function removeConnection(cargoId, res) {
 }
 
 export function notifyCargoId(cargoId, data) {
-  const cargoIds = new Set([cargoId]);
-
-  if (cargoId === CARGO_IDS.ASISTENTE_UATH) {
-    cargoIds.add(CARGO_IDS.AUXILIAR_UATH);
-  }
-
-  if (cargoId === `firma-${CARGO_IDS.ASISTENTE_UATH}`) {
-    cargoIds.add(`firma-${CARGO_IDS.AUXILIAR_UATH}`);
-  }
+  const isFirmaKey = String(cargoId).startsWith("firma-");
+  const cargoIdBase = isFirmaKey ? String(cargoId).replace("firma-", "") : cargoId;
+  const cargoIds = new Set(
+    cargoIdsEquivalentes(cargoIdBase).map((id) =>
+      isFirmaKey ? `firma-${id}` : id,
+    ),
+  );
 
   cargoIds.forEach((id) => {
     const clients = connections.get(id) || [];
