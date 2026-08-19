@@ -117,9 +117,9 @@ const _generarPdfAccionBytes = async (id, firmante_id) => {
     LEFT JOIN core.proceso_institucional pip ON pip.id = prop.proceso_institucional_id
     LEFT JOIN core.nivel_gestion ngp ON ngp.id = prop.nivel_gestion_id
     LEFT JOIN core.proceso_institucional pia
-ON pia.id = ap.proceso_institucional_id
-LEFT JOIN core.nivel_gestion nga
-ON nga.id = ap.nivel_gestion_id
+    ON pia.id = ap.proceso_institucional_id 
+    LEFT JOIN core.nivel_gestion nga
+    ON nga.id = ap.nivel_gestion_id
     
     WHERE ap.id = $1
     LIMIT 1;
@@ -141,16 +141,14 @@ LIMIT 1;
 `,
   );
   const firmanteResult2 = await pool.query(
-    `
-SELECT 
-  f.nombre,
-  c.nombre AS cargo
-FROM core.firmante f
-JOIN core.cargo c ON c.id = f.cargo_id
-WHERE c.nombre = 'RESPONSABLE DE LA UATH'
-AND c.activo = true
-LIMIT 1;
-`,
+    `SELECT 
+      f.nombre,
+      c.nombre AS cargo
+        FROM core.firmante f
+        JOIN core.cargo c ON c.id = f.cargo_id
+        WHERE c.nombre = 'RESPONSABLE DE LA UATH'
+        AND c.activo = true
+        LIMIT 1;`,
   );
 
   // Consultar datos del usuario autenticado para mostrar en el PDF
@@ -225,9 +223,7 @@ LIMIT 1;
   const nombreFirmante2 = limpiarTextoWinAnsi(firmante2.nombre || "");
   const cargoFirmante2 = limpiarTextoWinAnsi(firmante2.cargo || "");
 
-  const { nombres, apellidos } = separarNombresApellidos(
-    accionLimpia.nombres,
-  );
+  const { nombres, apellidos } = separarNombresApellidos(accionLimpia.nombres);
 
   // cargar plantilla
   const pdfPath = path.resolve(
@@ -627,9 +623,7 @@ LIMIT 1;
 
     drawCenteredText({
       page,
-      text: accionLimpia.rmu_propuesta
-        ? `$${accionLimpia.rmu_propuesta}`
-        : "",
+      text: accionLimpia.rmu_propuesta ? `$${accionLimpia.rmu_propuesta}` : "",
       centerX: 410,
       y: 283,
       size: 5,
@@ -754,6 +748,36 @@ LIMIT 1;
     size: 5,
   });
 
+  // Concatenar Apellidos + Nombres (mismo orden que usas en página 1)
+  const nombreCompletoServidor =
+    `${limpiarTextoWinAnsi(apellidos)} ${limpiarTextoWinAnsi(nombres)}`.trim();
+
+  // Dibujar al lado de la etiqueta "NOMBRE:" en la sección de aceptación
+  page2.drawText(nombreCompletoServidor, {
+    x: 88, // justo a la derecha de "NOMBRE:" (x=42.20)
+    y: 672.4, // misma línea que la etiqueta
+    size: 5,
+    font,
+    color: rgb(0, 0, 0),
+  });
+
+  // Mismos datos que "RESPONSABLE DE REVISIÓN" (nombreUsuario / cargoUsuario)
+  page2.drawText(nombreFirmante2 || "", {
+    x: 255, // a la derecha de "NOMBRE:"
+    y: 98.2,
+    size: 5,
+    font,
+    color: rgb(0, 0, 0),
+  });
+
+  page2.drawText(cargoFirmante2 || "", {
+    x: 255, // a la derecha de "PUESTO:"
+    y: 86.8,
+    size: 5,
+    font,
+    color: rgb(0, 0, 0),
+  });
+
   // exportar
   const pdfFinal = await pdfDoc.save();
 
@@ -766,7 +790,10 @@ export const generarPdfAccion = async (req, res) => {
     const { id } = req.params;
     const pdfBuffer = await _generarPdfAccionBytes(id, req.user.firmante_id);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=accion_personal_${id}.pdf`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=accion_personal_${id}.pdf`,
+    );
     res.send(pdfBuffer);
   } catch (error) {
     res.status(500).json({ message: "Error generando PDF: " + error.message });
