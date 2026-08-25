@@ -33,6 +33,24 @@ const POSICIONES_ACCION = {
   aprueba_autoridad: { x: 350, y: 85, width: 115, height: 40, page: 0 },
 };
 
+// Recuadro "FIRMA DEL RESPONSABLE QUE NOTIFICÓ" en la página 2 (índice 1)
+// de la plantilla de Acciones de Personal. Solo se usa cuando quien
+// firma como "aprueba_th" (RESPONSABLE DE LA UATH) ya generó su QR para
+// la página 1: ese MISMO qrImage se dibuja también aquí, sin generar un
+// segundo QR ni una segunda firma. Coordenadas verificadas contra el
+// texto real de la plantilla (pdftotext -bbox-layout): el título "FIRMA
+// DEL RESPONSABLE QUE NOTIFICÓ" y su línea quedan justo debajo (y<131),
+// y "NOMBRE:"/"PUESTO:" quedan muy por debajo (y<103). La franja
+// y=136..172 está completamente en blanco en la plantilla, verificado
+// también renderizando una superposición de prueba.
+const POSICION_QR_NOTIFICACION_UATH = {
+  x: 269,
+  y: 136,
+  width: 36,
+  height: 36,
+  page: 1,
+};
+
 const limpiarTexto = (texto = "") => {
   const replacements = {
     á: "a", à: "a", ä: "a", â: "a",
@@ -203,6 +221,26 @@ export const firmarPdfAccionConP12 = async ({
       font: fontRegular,
       color: rgb(0, 0, 0),
     });
+
+    // Reutilizar el MISMO QR (misma firma, no una segunda) en el
+    // recuadro "FIRMA DEL RESPONSABLE QUE NOTIFICÓ" de la página 2,
+    // únicamente cuando quien firma es RESPONSABLE DE LA UATH
+    // (rol_firma "aprueba_th"). Se dibuja el mismo objeto qrImage ya
+    // embebido arriba — no se genera un segundo QR ni un segundo
+    // placeholder de firma — y siempre antes del sellado criptográfico
+    // final, para que quede incluido en la misma revisión firmada.
+    if (posicion === "aprueba_th") {
+      const notifPos = POSICION_QR_NOTIFICACION_UATH;
+      const paginaNotificacion = pages[notifPos.page];
+      if (paginaNotificacion) {
+        paginaNotificacion.drawImage(qrImage, {
+          x: notifPos.x,
+          y: notifPos.y,
+          width: notifPos.width,
+          height: notifPos.height,
+        });
+      }
+    }
 
     // Placeholder firma digital
     await pdflibAddPlaceholder({

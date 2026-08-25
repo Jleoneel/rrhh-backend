@@ -53,6 +53,14 @@ const _generarPdfAccionBytes = async (id, firmante_id) => {
       .replace(/\n/g, " ")
       .replace(/\r/g, " ")
       .replace(/\t/g, " ")
+      // Red de seguridad: cualquier carácter fuera del ASCII imprimible
+      // (box-drawing, emojis, símbolos matemáticos, CJK, etc.) no tiene
+      // equivalente WinAnsi y hace fallar page.drawText/widthOfTextAtSize
+      // con una excepción no controlada. Los acentos/comillas/guiones
+      // relevantes ya se normalizaron arriba; lo que quede aquí se
+      // descarta para que un campo de texto libre (ej. "motivo") nunca
+      // pueda tumbar la generación del PDF.
+      .replace(/[^\x20-\x7E]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   };
