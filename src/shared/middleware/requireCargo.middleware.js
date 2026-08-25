@@ -31,7 +31,7 @@ export function requireCargo(cargosPermitidos = []) {
 
       if (!autorizado) {
         return res.status(403).json({
-          message: "No autorizado para crear acciones de personal",
+          message: "No autorizado para realizar esta operación",
         });
       }
       req.user.cargo_id = cargoId;

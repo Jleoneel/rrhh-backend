@@ -98,6 +98,16 @@ router.post(
   },
 );
 
+// REGÍMENES LABORALES
+router.get("/regimenes-laborales", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(`
+    SELECT id, codigo, nombre
+    FROM core.regimen_laboral
+    ORDER BY nombre ASC;
+  `);
+  res.json(rows);
+});
+
 //LUGARES DE TRABAJO
 router.get("/lugares-trabajo", requireAuth, async (req, res) => {
   const { rows } = await pool.query(`

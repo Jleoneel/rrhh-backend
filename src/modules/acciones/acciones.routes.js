@@ -1,4 +1,6 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
 import { pool } from "../../db.js";
 import * as anexosCtrl from "../acciones/accionesAnexos.controller.js";
 import {
@@ -17,6 +19,137 @@ const router = Router();
 const upload = uploadFirma();
 const CARGO_ASISTENTE_UATH = CARGO_IDS.ASISTENTE_UATH;
 const uploadAnx = uploadAnexo();
+
+// Estados de accion_personal desde los cuales se permite la eliminación
+// definitiva. Nunca incluir APROBADO ni INSUBSISTENTE aquí.
+const ESTADOS_ELIMINABLES = ["BORRADOR", "EN_FIRMA"];
+
+// Cargos autorizados para configurar la numeración de elaboración.
+const CARGOS_CONFIG_NUMERACION = [
+  CARGO_IDS.RESPONSABLE_UATH,
+  CARGO_IDS.ADMINISTRADOR_SISTEMA,
+];
+
+async function getProximoNumeroElaboracion(client) {
+  const seqR = await client.query(
+    `SELECT last_value, is_called FROM core.seq_accion_numero_elaboracion;`,
+  );
+  const incR = await client.query(
+    `SELECT increment_by FROM pg_sequences
+     WHERE schemaname = 'core' AND sequencename = 'seq_accion_numero_elaboracion';`,
+  );
+  const { last_value, is_called } = seqR.rows[0];
+  const incrementBy = incR.rows[0]?.increment_by ?? 1;
+  const proximo = is_called
+    ? Number(last_value) + Number(incrementBy)
+    : Number(last_value);
+  return proximo;
+}
+
+// GET /api/acciones/numeracion/proximo
+router.get(
+  "/numeracion/proximo",
+  requireAuth,
+  requireCargo(CARGOS_CONFIG_NUMERACION),
+  async (req, res) => {
+    try {
+      const proximo = await getProximoNumeroElaboracion(pool);
+      return res.json({ proximo_numero_elaboracion: proximo });
+    } catch (error) {
+      console.error("Error consultando numeración:", error);
+      return res
+        .status(500)
+        .json({ message: "No se pudo consultar la numeración actual" });
+    }
+  },
+);
+
+router.put(
+  "/numeracion",
+  requireAuth,
+  requireCargo(CARGOS_CONFIG_NUMERACION),
+  async (req, res) => {
+    const raw = req.body?.restart_with;
+
+    // Validación de formato: entero positivo, sin decimales, sin strings.
+    // El tipo real de la secuencia es bigint (min 1, max ~9.2e18); nos
+    // limitamos a Number.MAX_SAFE_INTEGER porque JS no puede representar
+    // con precisión valores mayores, y ningún número de elaboración real
+    // se acercará jamás a ese rango.
+    const restartWith = Number(raw);
+    const formatoValido =
+      raw !== null &&
+      raw !== undefined &&
+      raw !== "" &&
+      typeof raw !== "boolean" &&
+      Number.isInteger(restartWith) &&
+      restartWith >= 1 &&
+      restartWith <= Number.MAX_SAFE_INTEGER;
+
+    if (!formatoValido) {
+      return res
+        .status(400)
+        .json({ message: "Ingrese un número de elaboración válido" });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Bloquea la tabla frente a inserciones concurrentes mientras se
+      // comprueba disponibilidad y se altera la secuencia, para que una
+      // creación de Acción (nextval + INSERT) no pueda intercalarse entre
+      // el chequeo de "¿existe ya este número?" y el ALTER SEQUENCE.
+      await client.query(
+        "LOCK TABLE core.accion_personal IN SHARE ROW EXCLUSIVE MODE",
+      );
+
+      const anteriorProximo = await getProximoNumeroElaboracion(client);
+
+      const ocupado = await client.query(
+        `SELECT id, codigo_elaboracion FROM core.accion_personal WHERE numero_elaboracion = $1 LIMIT 1;`,
+        [restartWith],
+      );
+      if (ocupado.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message: `El número de elaboración ${restartWith} ya está utilizado por una Acción de Personal (${ocupado.rows[0].codigo_elaboracion}). Elimine esa Acción antes de reutilizar este número.`,
+        });
+      }
+
+      // ALTER SEQUENCE no admite parámetros bind ($1); el valor ya fue
+      // validado arriba como entero seguro, por lo que la interpolación
+      // no introduce riesgo de inyección.
+      await client.query(
+        `ALTER SEQUENCE core.seq_accion_numero_elaboracion RESTART WITH ${restartWith};`,
+      );
+
+      // No confiar en que restartWith == próximo número: se vuelve a leer
+      // el estado real de la secuencia tras el ALTER, dentro de la misma
+      // transacción.
+      const nuevoProximo = await getProximoNumeroElaboracion(client);
+
+      await client.query("COMMIT");
+
+      console.log(
+        `[CONFIG_NUMERACION] usuario=${req.user.firmante_id} cargo=${req.user.cargo_id} valor_anterior=${anteriorProximo} valor_nuevo=${nuevoProximo} fecha=${new Date().toISOString()}`,
+      );
+
+      return res.json({
+        message: "Numeración configurada correctamente",
+        proximo_numero_elaboracion: nuevoProximo,
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      console.error("Error configurando numeración:", error);
+      return res
+        .status(500)
+        .json({ message: "No se pudo configurar la numeración" });
+    } finally {
+      client.release();
+    }
+  },
+);
 
 // Función para interpretar valores booleanos de forma flexible
 const parseBoolean = (value) => {
@@ -243,6 +376,12 @@ router.post(
       });
     } catch (error) {
       await client.query("ROLLBACK");
+      if (error.code === "23505") {
+        return res.status(409).json({
+          message:
+            "El número de elaboración generado ya está en uso. Intente nuevamente.",
+        });
+      }
       return res.status(500).json({
         message: "Error creando acción",
         error: error.message,
@@ -388,11 +527,110 @@ router.get("/:id", requireAuth, async (req, res) => {
   }
 });
 
+router.delete(
+  "/:id",
+  requireAuth,
+  requireCargo([CARGO_IDS.RESPONSABLE_UATH, CARGO_IDS.ADMINISTRADOR_SISTEMA]),
+  async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+    let accionEliminada = null;
+
+    try {
+      await client.query("BEGIN");
+
+      const accionR = await client.query(
+        `
+        SELECT id, estado, codigo_elaboracion, numero_elaboracion
+        FROM core.accion_personal
+        WHERE id = $1
+        FOR UPDATE;
+        `,
+        [id],
+      );
+
+      if (!accionR.rows.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          message: "La Acción de Personal no existe o ya fue eliminada",
+        });
+      }
+
+      const accion = accionR.rows[0];
+
+      if (!ESTADOS_ELIMINABLES.includes(accion.estado)) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          message: "No se puede eliminar una Acción de Personal completada",
+        });
+      }
+
+      // Dependencias sin ON DELETE CASCADE hacia core.accion_personal.
+      // (accion_documento, accion_firma, accion_personal_anexo,
+      // accion_situacion_propuesta y notificacion_recepcion sí tienen
+      // CASCADE y se eliminan automáticamente junto con la acción).
+      await client.query(
+        `DELETE FROM core.notificacion_accion WHERE accion_id = $1;`,
+        [id],
+      );
+      await client.query(
+        `DELETE FROM core.notificacion_firma WHERE accion_id = $1;`,
+        [id],
+      );
+
+      await client.query(`DELETE FROM core.accion_personal WHERE id = $1;`, [
+        id,
+      ]);
+
+      await client.query("COMMIT");
+      accionEliminada = accion;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      console.error("Error eliminando acción de personal:", error);
+      return res.status(500).json({
+        message: "No se pudo eliminar la Acción de Personal",
+      });
+    } finally {
+      client.release();
+    }
+
+    console.log(
+      `[ELIMINACION_ACCION] usuario=${req.user.firmante_id} cargo=${req.user.cargo_id} accion=${accionEliminada.id} numero_elaboracion=${accionEliminada.numero_elaboracion} codigo=${accionEliminada.codigo_elaboracion} estado_anterior=${accionEliminada.estado} fecha=${new Date().toISOString()}`,
+    );
+
+    // La transacción de BD ya confirmó. El sistema de archivos no
+    // participa de esa transacción, así que el borrado físico se hace
+    // después y de forma tolerante a fallos: si algo queda huérfano en
+    // disco, se registra pero no se revierte la eliminación en BD.
+    if (accionEliminada.codigo_elaboracion) {
+      try {
+        const baseUploads = path.resolve(process.env.UPLOADS_DIR || "uploads");
+        const dirAccion = path.join(
+          baseUploads,
+          "acciones",
+          accionEliminada.codigo_elaboracion,
+        );
+        await fs.promises.rm(dirAccion, { recursive: true, force: true });
+      } catch (fsError) {
+        console.error(
+          `[ELIMINACION_ACCION] No se pudieron eliminar los archivos físicos de ${accionEliminada.codigo_elaboracion}:`,
+          fsError,
+        );
+      }
+    }
+
+    return res.json({
+      message: "Acción de Personal eliminada correctamente",
+      numero_elaboracion: accionEliminada.numero_elaboracion,
+    });
+  },
+);
+
 // PUT /api/acciones/:id  (editar acción completa)
 router.put(
   "/:id",
   requireAuth,
-  requireCargo([CARGO_ASISTENTE_UATH]),
+  requireCargo([CARGO_ASISTENTE_UATH, CARGO_IDS.RESPONSABLE_UATH]),
   async (req, res) => {
     const { id } = req.params;
     const {

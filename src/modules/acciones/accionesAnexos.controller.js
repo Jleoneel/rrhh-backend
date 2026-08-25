@@ -4,6 +4,11 @@ import { pool } from "../../db.js";
 
 const baseUploads = path.resolve(process.env.UPLOADS_DIR || "uploads");
 
+// Estados de accion_personal en los que se permite agregar/eliminar anexos.
+// APROBADO e INSUBSISTENTE quedan en solo lectura (los anexos siguen
+// siendo consultables vía listar/descargar en cualquier estado).
+const ESTADOS_ANEXOS_EDITABLES = ["BORRADOR", "EN_FIRMA"];
+
 // Función helper para obtener ruta con código
 async function getAnexosDir(accionId) {
   const { rows } = await pool.query(
@@ -39,7 +44,7 @@ export const listar = async (req, res) => {
   res.json(rows);
 };
 
-// Subir anexo: solo si acción está en BORRADOR
+// Subir anexo: solo si la acción está en BORRADOR o EN_FIRMA
 export const subir = async (req, res) => {
   const { accionId } = req.params;
 
@@ -57,8 +62,10 @@ export const subir = async (req, res) => {
     );
 
     if (!accion.length) throw new Error("Acción no existe");
-    if (accion[0].estado !== "BORRADOR") 
-      throw new Error("Solo se pueden subir anexos en BORRADOR");
+    if (!ESTADOS_ANEXOS_EDITABLES.includes(accion[0].estado))
+      throw new Error(
+        "No se pueden subir anexos en el estado actual de la acción",
+      );
 
     const codigo = accion[0].codigo_elaboracion;
     const rutaRelativa = `/uploads/acciones/${codigo}/anexos/${req.file.filename}`;
@@ -94,7 +101,7 @@ export const subir = async (req, res) => {
   }
 };
 
-// Eliminar anexo: solo si acción está en BORRADOR
+// Eliminar anexo: solo si la acción está en BORRADOR o EN_FIRMA
 export const eliminar = async (req, res) => {
   const { accionId, anexoId } = req.params;
 
@@ -105,8 +112,10 @@ export const eliminar = async (req, res) => {
 
   if (!accion.length) return res.status(404).json({ message: "Acción no existe" });
 
-  if (accion[0].estado !== "BORRADOR") {
-    return res.status(409).json({ message: "Solo se pueden eliminar anexos en BORRADOR" });
+  if (!ESTADOS_ANEXOS_EDITABLES.includes(accion[0].estado)) {
+    return res.status(409).json({
+      message: "No se pueden eliminar anexos en el estado actual de la acción",
+    });
   }
 
   const { rows } = await pool.query(
