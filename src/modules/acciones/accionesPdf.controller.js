@@ -138,24 +138,28 @@ const _generarPdfAccionBytes = async (id, firmante_id) => {
   // Consultar firmantes para los cargos específicos
   const firmanteResult = await pool.query(
     `
-SELECT 
+SELECT
   f.nombre,
   c.nombre AS cargo
 FROM core.firmante f
 JOIN core.cargo c ON c.id = f.cargo_id
 WHERE c.nombre = 'GERENTE HOSPITALARIO ENCARGADO'
 AND c.activo = true
+AND f.activo = true
+ORDER BY f.id
 LIMIT 1;
 `,
   );
   const firmanteResult2 = await pool.query(
-    `SELECT 
+    `SELECT
       f.nombre,
       c.nombre AS cargo
         FROM core.firmante f
         JOIN core.cargo c ON c.id = f.cargo_id
         WHERE c.nombre = 'RESPONSABLE DE LA UATH'
         AND c.activo = true
+        AND f.activo = true
+        ORDER BY f.id
         LIMIT 1;`,
   );
 
