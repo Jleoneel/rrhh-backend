@@ -278,6 +278,29 @@ LIMIT 1;
     });
   };
 
+  // Envuelve texto en líneas que respetan maxWidth para un font/size dados,
+  // sin dibujar nada (usado tanto por el modo simple como por el modo
+  // "ajustar a la caja" de drawWrappedText).
+  const envolverLineas = (texto, font, size, maxWidth) => {
+    const words = texto.split(" ");
+    const lines = [];
+    let line = "";
+
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + (line ? " " : "") + words[i];
+      const width = font.widthOfTextAtSize(testLine, size);
+
+      if (width > maxWidth && line !== "") {
+        lines.push(line);
+        line = words[i];
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+
   const drawWrappedText = ({
     page,
     text = "",
@@ -287,6 +310,8 @@ LIMIT 1;
     lineHeight = 12,
     font,
     size = 9,
+    maxHeight, // opcional: si se pasa, el texto se ajusta para no salir del recuadro
+    minSize = 5,
   }) => {
     if (!text) return;
 
@@ -296,37 +321,44 @@ LIMIT 1;
       .replace(/\r/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    const words = textoLimpio.split(" ");
-    let line = "";
-    let cursorY = y;
+    if (!textoLimpio) return;
 
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line + (line ? " " : "") + words[i];
-      const width = font.widthOfTextAtSize(testLine, size);
+    let tamano = size;
+    let alturaLinea = lineHeight;
+    let lines = envolverLineas(textoLimpio, font, tamano, maxWidth);
 
-      if (width > maxWidth && line !== "") {
-        page.drawText(line, {
-          x,
-          y: cursorY,
-          size,
-          font,
-          color: rgb(0, 0, 0),
-        });
-        line = words[i];
-        cursorY -= lineHeight;
-      } else {
-        line = testLine;
+    if (maxHeight) {
+      // Reducir tamaño de fuente (proporcionalmente el interlineado) hasta
+      // que el texto envuelto quepa dentro de la altura disponible de la
+      // caja, sin bajar de minSize.
+      while (lines.length * alturaLinea > maxHeight && tamano > minSize) {
+        tamano -= 0.5;
+        alturaLinea = (lineHeight / size) * tamano;
+        lines = envolverLineas(textoLimpio, font, tamano, maxWidth);
+      }
+
+      // Red de seguridad: si ni siquiera al tamaño mínimo cabe todo el
+      // texto, se recortan las líneas sobrantes para que NUNCA se dibuje
+      // fuera de la caja (evita que se monte sobre el contenido de abajo).
+      const maxLineas = Math.max(1, Math.floor(maxHeight / alturaLinea));
+      if (lines.length > maxLineas) {
+        lines = lines.slice(0, maxLineas);
+        const ultima = lines[maxLineas - 1];
+        lines[maxLineas - 1] =
+          ultima.length > 3 ? `${ultima.slice(0, -3)}...` : `${ultima}...`;
       }
     }
 
-    if (line) {
-      page.drawText(line, {
+    let cursorY = y;
+    for (const linea of lines) {
+      page.drawText(linea, {
         x,
         y: cursorY,
-        size,
+        size: tamano,
         font,
         color: rgb(0, 0, 0),
       });
+      cursorY -= alturaLinea;
     }
   };
 
@@ -459,6 +491,14 @@ LIMIT 1;
     font,
     size: 9,
     lineHeight: 12,
+    // Recuadro "MOTIVACIÓN" real en la plantilla: borde superior en
+    // y≈566.4 (justo debajo del rótulo, de ahí que el texto arranque en
+    // y=555) y borde inferior en y≈469.2 (justo encima de la fila
+    // "SITUACION ACTUAL"/"SITUACION PROPUESTA"), verificado con
+    // pdftotext -bbox-layout y renderizado visual de la plantilla. Se usa
+    // 470 como límite con un margen de seguridad de ~1pt.
+    maxHeight: 555 - 470,
+    minSize: 5,
   });
 
   drawWrappedText({

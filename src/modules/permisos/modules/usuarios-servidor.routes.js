@@ -59,6 +59,7 @@ router.get(
         sv.id AS servidor_id,
         sv.nombres,
         sv.numero_identificacion AS cedula,
+        sv.origen,
         u.nombre AS unidad_organica,
         d.nombre AS denominacion_puesto,
         us.id AS usuario_id,
