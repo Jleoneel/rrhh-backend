@@ -69,6 +69,91 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
   }
 });
 
+// PUT /api/permisos/saldos/:id
+// Corrige un saldo ya asignado. A diferencia de POST /saldos (que SIEMPRE
+// suma horas sobre el total existente, pensado para acumular saldo anual),
+// esto REEMPLAZA horas_totales y horas_usadas por los valores exactos
+// indicados, para poder corregir un error de asignación sin tener que
+// seguir sumando por encima del error. Queda registrado como movimiento
+// tipo 'AJUSTE' (ya contemplado en el CHECK de core.permiso_movimiento,
+// junto a 'INICIALIZACION' y 'DESCUENTO').
+router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
+  const { id } = req.params;
+  const { horas_totales, horas_usadas, descripcion } = req.body;
+
+  const nuevoTotales = parseFloat(horas_totales);
+  const nuevoUsadas = parseFloat(horas_usadas);
+
+  if (Number.isNaN(nuevoTotales) || Number.isNaN(nuevoUsadas)) {
+    return res
+      .status(400)
+      .json({ message: "horas_totales y horas_usadas son requeridos" });
+  }
+  if (nuevoTotales < 0 || nuevoUsadas < 0) {
+    return res
+      .status(400)
+      .json({ message: "Las horas no pueden ser negativas" });
+  }
+  if (nuevoTotales > 480) {
+    return res
+      .status(400)
+      .json({ message: "El total no puede superar 480 horas (60 días)" });
+  }
+  if (nuevoUsadas > nuevoTotales) {
+    return res
+      .status(400)
+      .json({ message: "Las horas usadas no pueden superar el total" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const actualR = await client.query(
+      `SELECT servidor_id, horas_totales, horas_usadas
+       FROM core.saldo_permiso WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
+    if (!actualR.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Saldo no encontrado" });
+    }
+    const actual = actualR.rows[0];
+
+    const { rows } = await client.query(
+      `UPDATE core.saldo_permiso
+       SET horas_totales = $1, horas_usadas = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [nuevoTotales, nuevoUsadas, id],
+    );
+
+    const deltaTotales = nuevoTotales - parseFloat(actual.horas_totales);
+    await client.query(
+      `INSERT INTO core.permiso_movimiento
+         (servidor_id, horas, tipo, descripcion, creado_por)
+       VALUES ($1, $2, 'AJUSTE', $3, $4)`,
+      [
+        actual.servidor_id,
+        deltaTotales,
+        descripcion ||
+          `Corrección manual de saldo: total ${actual.horas_totales}h -> ${nuevoTotales}h, usadas ${actual.horas_usadas}h -> ${nuevoUsadas}h`,
+        req.user.firmante_id,
+      ],
+    );
+
+    await client.query("COMMIT");
+    return res.json(rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    return res
+      .status(500)
+      .json({ message: "Error corrigiendo saldo", error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/permisos/mi-saldo (para servidor)
 router.get("/mi-saldo", requireAuth, requireServidor, async (req, res) => {
   const { servidor_id } = req.user;
