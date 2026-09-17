@@ -24,17 +24,34 @@ import distributivoposicionalRoutes from "./modules/distributivo/distributivo-po
 import "./shared/jobs/purgarFirmasIntermedias.job.js";
 
 const app = express();
+// Este backend es de uso exclusivamente interno (red del hospital, sin
+// exposición a internet), así que en vez de mantener una lista de IPs
+// exactas que hay que tocar cada vez que se conecta una máquina nueva,
+// se permite cualquier origen dentro del rango privado 192.168.0.0/16
+// (el mismo rango de todas las IPs que se han agregado hasta ahora).
+// CORS_EXTRA_ORIGINS sigue disponible, vía .env, para orígenes fuera de
+// ese rango (otra subred, un dominio, etc.) sin tocar código.
+const RED_INTERNA_ORIGEN = /^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/;
+
+const extraOrigins = (process.env.CORS_EXTRA_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  "http://192.168.110.121",
-  "http://192.168.5.117",
   "http://localhost:5173",
+  ...extraOrigins,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        RED_INTERNA_ORIGEN.test(origin)
+      ) {
         callback(null, true);
       } else {
         callback(new Error("No permitido por CORS"));
