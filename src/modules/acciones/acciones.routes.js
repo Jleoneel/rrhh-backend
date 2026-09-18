@@ -359,6 +359,24 @@ router.post(
         `;
       await client.query(cloneQ, [accion_id, tipo_accion_id]);
 
+      // 4b) Paso final: recepción del servidor público. No viene de
+      // tipo_accion_firma (no es "por cargo": es específicamente el
+      // servidor al que pertenece esta acción), así que se agrega aparte,
+      // con el orden siguiente al último paso institucional clonado.
+      const recibidoQ = `
+          INSERT INTO core.accion_firma
+            (accion_id, rol_firma, orden, servidor_id, estado)
+          SELECT
+            $1,
+            'RECIBIDO',
+            COALESCE(MAX(af.orden), 0) + 1,
+            $2,
+            'PENDIENTE'
+          FROM core.accion_firma af
+          WHERE af.accion_id = $1;
+        `;
+      await client.query(recibidoQ, [accion_id, servidor_id]);
+
       // 5) Crear propuesta por defecto (para Step 3)
       const propuestaQ = `
           INSERT INTO core.accion_situacion_propuesta (accion_id)
@@ -480,8 +498,9 @@ router.get("/:id", requireAuth, async (req, res) => {
         ap.archivo_elabora, 
         ap.archivo_registra, 
         ap.archivo_revisa,
-        ap.archivo_aprueba_th, 
+        ap.archivo_aprueba_th,
         ap.archivo_aprueba_autoridad,
+        ap.archivo_recibido,
         s.numero_identificacion AS cedula,
         s.nombres AS servidor_nombre,
         ta.nombre AS tipo_accion_nombre,
@@ -742,6 +761,26 @@ router.put(
           ORDER BY taf.orden;
         `;
         await client.query(cloneQ, [id, newTipoId]);
+
+        // Igual que en la creación: paso final de recepción del
+        // servidor público, agregado aparte porque no viene de
+        // tipo_accion_firma.
+        await client.query(
+          `
+          INSERT INTO core.accion_firma
+            (accion_id, rol_firma, orden, servidor_id, estado)
+          SELECT
+            $1,
+            'RECIBIDO',
+            (SELECT COALESCE(MAX(af.orden), 0) + 1
+               FROM core.accion_firma af WHERE af.accion_id = $1),
+            ap.servidor_id,
+            'PENDIENTE'
+          FROM core.accion_personal ap
+          WHERE ap.id = $1;
+          `,
+          [id],
+        );
       }
 
       // 5) propuesta (si aplica)

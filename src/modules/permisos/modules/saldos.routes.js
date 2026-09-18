@@ -70,13 +70,6 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
 });
 
 // PUT /api/permisos/saldos/:id
-// Corrige un saldo ya asignado. A diferencia de POST /saldos (que SIEMPRE
-// suma horas sobre el total existente, pensado para acumular saldo anual),
-// esto REEMPLAZA horas_totales y horas_usadas por los valores exactos
-// indicados, para poder corregir un error de asignación sin tener que
-// seguir sumando por encima del error. Queda registrado como movimiento
-// tipo 'AJUSTE' (ya contemplado en el CHECK de core.permiso_movimiento,
-// junto a 'INICIALIZACION' y 'DESCUENTO').
 router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
   const { id } = req.params;
   const { horas_totales, horas_usadas, descripcion } = req.body;

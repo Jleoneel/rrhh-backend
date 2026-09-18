@@ -443,6 +443,75 @@ const plantillas = {
       </div>
     `,
   }),
+
+  accionRecepcionPendiente: ({
+    servidor_nombre,
+    tipo_accion,
+    codigo_elaboracion,
+  }) => ({
+    subject: `[SITH] Tienes una Acción de Personal para firmar como recibida`,
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
+          <div style="margin-bottom: 16px;">
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
+          </div>
+          <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
+          <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
+          <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 12px;">Sistema de Talento Humano - SITH</p>
+        </div>
+
+        <div style="padding: 28px; background: ${COLORS.white};">
+          <div style="margin-bottom: 24px;">
+            <span style="background: ${COLORS.primary}10; color: ${COLORS.primary}; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">ACCIÓN DE PERSONAL APROBADA</span>
+          </div>
+
+          <p style="color: ${COLORS.text}; margin: 0 0 20px; line-height: 1.5;">
+            Estimado/a <strong style="color: ${COLORS.primary};">${servidor_nombre}</strong>,
+          </p>
+
+          <p style="color: ${COLORS.text}; margin: 0 0 20px; line-height: 1.5;">
+            Su Acción de Personal ya fue aprobada por Talento Humano y la Gerencia. Falta un último paso: firmar digitalmente su <strong>aceptación y/o recepción</strong> con su propio certificado electrónico.
+          </p>
+
+          <div style="background: ${COLORS.background}; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid ${COLORS.primary};">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Tipo de acción:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo_accion}</td>
+              </tr>
+              ${
+                codigo_elaboracion
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Código:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${codigo_elaboracion}</td>
+              </tr>`
+                  : ""
+              }
+            </table>
+          </div>
+
+          <p style="color: ${COLORS.text}; margin: 0 0 24px; line-height: 1.5;">
+            Ingrese a "Mis Acciones de Personal" en el sistema SITH para revisar el documento y firmarlo.
+          </p>
+
+          <div style="text-align: center; margin: 28px 0 16px;">
+            <a href="${process.env.FRONTEND_URL}/servidor/acciones"
+               style="display: inline-block; background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); color: ${COLORS.white}; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              Ir a Mis Acciones de Personal
+            </a>
+          </div>
+        </div>
+
+        <div style="background: ${COLORS.background}; padding: 16px 24px; text-align: center; border-top: 1px solid ${COLORS.border};">
+          <p style="color: ${COLORS.textLight}; font-size: 11px; margin: 0;">
+            Este es un correo automático del sistema SITH — No responder
+          </p>
+        </div>
+      </div>
+    `,
+  }),
 };
 
 // FUNCIÓN PRINCIPAL

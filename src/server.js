@@ -18,6 +18,7 @@ import firmantesRoutes from "./modules/firmantes/firmantes.routes.js";
 import notificacionesRoutes from "./modules/notificaciones/notificaciones.routes.js";
 import distributivoRoutes from "./modules/distributivo/distributivo.routes.js";
 import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.js";
+import recepcionNotificacionRoutes from "./modules/firmas/recepcionNotificacion.routes.js";
 import permisosRoutes from "./modules/permisos/permisos.routes.js"
 import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
 import distributivoposicionalRoutes from "./modules/distributivo/distributivo-posicional.routes.js";
@@ -83,6 +84,7 @@ app.use("/api/notificaciones", notificacionesRoutes);
 app.use("/api/firmantes", firmantesRoutes);
 app.use("/api/distributivo", distributivoRoutes);
 app.use("/api/firma-notificaciones", firmaNotificacionRoutes);
+app.use("/api/recepcion-notificaciones", recepcionNotificacionRoutes);
 app.use("/api/permisos", permisosRoutes);
 app.use("/api/distributivo", distributivoposicionalRoutes);
 

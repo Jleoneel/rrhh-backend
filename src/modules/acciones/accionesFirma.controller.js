@@ -2,6 +2,7 @@ import path from "path";
 import { withTransaction } from "../../db.js";
 import { notifyCargoId } from "../../shared/utils/sseManager.js";
 import { cargoPuedeActuarComo } from "../../shared/constants/cargos.js";
+import { notificarRecepcionPendiente } from "../../shared/utils/notificarRecepcion.js";
 
 export async function subirFirmado(req, res) {
   const { accionId } = req.params;
@@ -131,11 +132,12 @@ export async function subirFirmado(req, res) {
         );
       }
 
-      // 9) Si no quedan pendientes: APROBADO
+      // 9) Si no quedan pendientes (sin contar RECIBIDO, la recepción del
+      // servidor no es parte de la cadena institucional): APROBADO
       const restR = await client.query(
         `SELECT COUNT(*)::int AS n
          FROM core.accion_firma
-         WHERE accion_id=$1 AND estado='PENDIENTE';`,
+         WHERE accion_id=$1 AND estado='PENDIENTE' AND rol_firma != 'RECIBIDO';`,
         [accionId],
       );
       const restantes = Number(restR.rows[0].n || 0);
@@ -145,13 +147,17 @@ export async function subirFirmado(req, res) {
           `UPDATE core.accion_personal SET estado='APROBADO' WHERE id=$1;`,
           [accionId],
         );
+        // Avisar al servidor (correo + SSE) que ya puede firmar su
+        // recepción. No bloquea la respuesta si algo falla aquí.
+        notificarRecepcionPendiente(accionId);
       }
-      //Notificar al siguiente firmante si quedan pendientes
+      //Notificar al siguiente firmante si quedan pendientes. RECIBIDO no
+      // es "por cargo" (cargo_id NULL), no aplica esta notificación.
       if (restantes > 0) {
         const siguienteR = await client.query(
           `SELECT cargo_id, rol_firma, orden
      FROM core.accion_firma
-     WHERE accion_id = $1 AND estado = 'PENDIENTE'
+     WHERE accion_id = $1 AND estado = 'PENDIENTE' AND rol_firma != 'RECIBIDO'
      ORDER BY orden ASC LIMIT 1;`,
           [accionId],
         );

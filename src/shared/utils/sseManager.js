@@ -15,6 +15,16 @@ export function removeConnection(cargoId, res) {
   connections.set(cargoId, filtered);
 }
 
+// Notifica a un servidor específico (clave "recepcion-<servidorId>"),
+// sin la lógica de cargos equivalentes que no aplica aquí.
+export function notifyServidorId(servidorId, data) {
+  const key = `recepcion-${servidorId}`;
+  const clients = connections.get(key) || [];
+  clients.forEach((res) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  });
+}
+
 export function notifyCargoId(cargoId, data) {
   const isFirmaKey = String(cargoId).startsWith("firma-");
   const cargoIdBase = isFirmaKey ? String(cargoId).replace("firma-", "") : cargoId;

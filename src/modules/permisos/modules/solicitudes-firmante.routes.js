@@ -336,11 +336,13 @@ router.put(
       }
 
       await client.query(
-        `
-      UPDATE core.permiso_solicitud SET estado = 'CANCELADO' WHERE id = $1
-    `,
+        `DELETE FROM core.notificacion_permiso WHERE solicitud_id = $1`,
         [id],
       );
+
+      await client.query(`DELETE FROM core.permiso_solicitud WHERE id = $1`, [
+        id,
+      ]);
 
       await client.query("COMMIT");
       return res.json({ message: "Solicitud cancelada correctamente" });

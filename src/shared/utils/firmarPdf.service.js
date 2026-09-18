@@ -31,6 +31,14 @@ const POSICIONES_ACCION = {
   revisa: { x: 235, y: 500, width: 115, height: 40, page: 1 },
   aprueba_th: { x: 90, y: 85, width: 115, height: 40, page: 0 },
   aprueba_autoridad: { x: 350, y: 85, width: 115, height: 40, page: 0 },
+  // Recuadro "ACEPTACIÓN Y/O RECEPCIÓN DEL SERVIDOR PÚBLICO", página 2
+  // (índice 1), columna izquierda (la derecha es para el testigo, no se
+  // usa aquí). Coordenadas verificadas por escaneo de píxeles sobre la
+  // plantilla renderizada: borde superior de la caja en pdflib y≈762.6,
+  // línea "FIRMA" en y≈682.0, borde izquierdo x≈25.7, divisor con la
+  // columna del testigo en x≈286.7 — y confirmadas con una superposición
+  // de prueba antes de aplicar el valor real.
+  recibido: { x: 75, y: 685, width: 200, height: 50, page: 1 },
 };
 
 // Recuadro "FIRMA DEL RESPONSABLE QUE NOTIFICÓ" en la página 2 (índice 1)

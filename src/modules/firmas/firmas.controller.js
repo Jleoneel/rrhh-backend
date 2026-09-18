@@ -117,6 +117,7 @@ SET estado = CASE
     FROM core.accion_firma af
     WHERE af.accion_id = ap.id
       AND af.estado = 'PENDIENTE'
+      AND af.rol_firma != 'RECIBIDO'
   )
   THEN 'APROBADO'
   
@@ -157,6 +158,8 @@ export async function listarFirmasAccion(req, res) {
       af.observacion,
       af.cargo_id,
       c.nombre AS cargo_nombre,
+      af.servidor_id,
+      sv.nombres AS servidor_nombre,
       af.firmante_id,
       f.nombre AS firmante_nombre,
       af.documento_id,
@@ -164,7 +167,8 @@ export async function listarFirmasAccion(req, res) {
       d.version AS documento_version,
       d.subido_por_firmante_id
     FROM core.accion_firma af
-    JOIN core.cargo c ON c.id = af.cargo_id
+    LEFT JOIN core.cargo c ON c.id = af.cargo_id
+    LEFT JOIN core.servidor sv ON sv.id = af.servidor_id
     LEFT JOIN core.firmante f ON f.id = af.firmante_id
     LEFT JOIN core.accion_documento d ON d.id = af.documento_id
     WHERE af.accion_id = $1
@@ -187,9 +191,12 @@ export async function firmaPendienteAccion(req, res) {
       af.rol_firma,
       af.cargo_id,
       c.nombre AS cargo_nombre,
+      af.servidor_id,
+      sv.nombres AS servidor_nombre,
       af.estado
     FROM core.accion_firma af
-    JOIN core.cargo c ON c.id = af.cargo_id
+    LEFT JOIN core.cargo c ON c.id = af.cargo_id
+    LEFT JOIN core.servidor sv ON sv.id = af.servidor_id
     WHERE af.accion_id = $1
       AND af.estado = 'PENDIENTE'
     ORDER BY af.orden ASC
