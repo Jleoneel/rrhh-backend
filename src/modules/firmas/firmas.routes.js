@@ -7,7 +7,6 @@ import {
   misFirmasPendientes,
   listarFirmasAccion,
   firmaPendienteAccion,
-  eliminarFirma,
 } from "./firmas.controller.js";
 import { firmarPdfAccionConP12 } from "../../shared/utils/firmarPdf.service.js";
 import { generarPdfAccionBuffer } from "../acciones/accionesPdf.controller.js";
@@ -24,11 +23,6 @@ const router = Router();
 router.get("/pendientes", requireAuth, misFirmasPendientes);
 router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);
 router.get("/acciones/:accionId/pendiente", requireAuth, firmaPendienteAccion);
-router.delete(
-  "/acciones/:accionId/firmas/:firmaId",
-  requireAuth,
-  eliminarFirma,
-);
 
 //RUTAS NUEVAS (certificado p12)
 // El certificado propio aplica tanto a firmantes institucionales

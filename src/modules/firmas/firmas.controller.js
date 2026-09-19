@@ -1,6 +1,4 @@
 import { pool } from "../../db.js";
-import fs from "fs";
-import path from "path";
 import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
 
 // Controlador para gestionar las firmas de las acciones personales
@@ -30,119 +28,6 @@ export async function misFirmasPendientes(req, res) {
   return res.json({ count: r.rowCount, items: r.rows });
 }
 
-// Controlador para eliminar una firma (solo si el documento fue subido por el mismo firmante)
-export async function eliminarFirma(req, res) {
-  const { accionId, firmaId } = req.params;
-  const { firmante_id } = req.user;
-
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    //Validar que el documento fue subido por este firmante
-    const qFirma = `
-      SELECT ad.id AS documento_id, ad.archivo_path
-      FROM core.accion_firma af
-      JOIN core.accion_documento ad 
-        ON ad.id = af.documento_id
-      WHERE af.id = $1
-        AND af.accion_id = $2
-        AND ad.subido_por_firmante_id = $3
-    `;
-
-    const rFirma = await client.query(qFirma, [
-      firmaId,
-      accionId,
-      firmante_id
-    ]);
-
-    if (!rFirma.rows.length) {
-      await client.query("ROLLBACK");
-      return res.status(403).json({
-        error: "No tienes permisos para eliminar este documento"
-      });
-    }
-
-    const documento = rFirma.rows[0];
-    const documentoId = documento.documento_id
-
-    //Quitar referencia y regresar firma a PENDIENTE
-    await client.query(
-      `
-      UPDATE core.accion_firma af
-      SET documento_id = NULL,
-          estado = 'PENDIENTE',
-          firmado_en = NULL,
-          observacion = NULL
-      FROM core.accion_documento ad
-      WHERE af.id = $1
-        AND af.documento_id = ad.id
-        AND ad.subido_por_firmante_id = $2
-      `,
-      [firmaId, firmante_id]
-    );
-
-    //Eliminar documento SOLO si pertenece al firmante
-    await client.query(
-      `
-      DELETE FROM core.accion_documento 
-      WHERE id = $1 
-        AND subido_por_firmante_id = $2
-      `,
-      [documentoId, firmante_id]
-    );
-    if (documentoId && documento.archivo_path) {
-  const rutaArchivo = path.join(process.cwd(), documento.archivo_path);
-  if (fs.existsSync(rutaArchivo)) {
-    fs.unlinkSync(rutaArchivo);
-  }
-}
-
-    //Recalcular estado de la acción automáticamente
-    await client.query(
-      `
-      UPDATE core.accion_personal ap
-SET estado = CASE
-  WHEN NOT EXISTS (
-    SELECT 1
-    FROM core.accion_firma af
-    WHERE af.accion_id = ap.id
-      AND af.estado = 'FIRMADO'
-  )
-  THEN 'BORRADOR'
-  
-  WHEN NOT EXISTS (
-    SELECT 1
-    FROM core.accion_firma af
-    WHERE af.accion_id = ap.id
-      AND af.estado = 'PENDIENTE'
-      AND af.rol_firma != 'RECIBIDO'
-  )
-  THEN 'APROBADO'
-  
-  ELSE 'EN_FIRMA'
-END
-WHERE ap.id = $1;
-      `,
-      [accionId]
-    );
-
-    await client.query("COMMIT");
-
-    return res.json({
-      message: "Documento eliminado correctamente y estado actualizado"
-    });
-
-  } catch (error) {
-    await client.query("ROLLBACK");
-    console.error("Error eliminando firma:", error);
-    return res.status(500).json({ error: error.message });
-  } finally {
-    client.release();
-  }
-}
-
 // Controlador para listar todas las firmas de una acción personal, con detalles de documento y firmante
 export async function listarFirmasAccion(req, res) {
   const { accionId } = req.params;
@@ -161,16 +46,11 @@ export async function listarFirmasAccion(req, res) {
       af.servidor_id,
       sv.nombres AS servidor_nombre,
       af.firmante_id,
-      f.nombre AS firmante_nombre,
-      af.documento_id,
-      d.archivo_path AS documento_path,
-      d.version AS documento_version,
-      d.subido_por_firmante_id
+      f.nombre AS firmante_nombre
     FROM core.accion_firma af
     LEFT JOIN core.cargo c ON c.id = af.cargo_id
     LEFT JOIN core.servidor sv ON sv.id = af.servidor_id
     LEFT JOIN core.firmante f ON f.id = af.firmante_id
-    LEFT JOIN core.accion_documento d ON d.id = af.documento_id
     WHERE af.accion_id = $1
     ORDER BY af.orden ASC;
   `;

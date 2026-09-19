@@ -7,16 +7,11 @@ import {
   requireAuth,
   requireAdmin,
 } from "../../shared/middleware/auth.middleware.js";
-import { uploadFirma, uploadAnexo } from "../../shared/utils/upload.js";
-import { subirFirmado } from "../acciones/accionesFirma.controller.js";
+import { uploadAnexo } from "../../shared/utils/upload.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
-import {
-  CARGO_IDS,
-  cargoPuedeActuarComo,
-} from "../../shared/constants/cargos.js";
+import { CARGO_IDS } from "../../shared/constants/cargos.js";
 
 const router = Router();
-const upload = uploadFirma();
 const CARGO_ASISTENTE_UATH = CARGO_IDS.ASISTENTE_UATH;
 const uploadAnx = uploadAnexo();
 
@@ -180,55 +175,6 @@ const parseBoolean = (value) => {
   if (typeof value === "number") return value === 1;
   return Boolean(value);
 };
-
-// Middleware para verificar si el usuario puede firmar el paso pendiente
-export async function requirePuedeFirmarPaso(req, res, next) {
-  const { accionId } = req.params;
-  const { cargo_id } = req.user;
-
-  // ← Verificar que la acción no esté insubsistente
-  const accionR = await pool.query(
-    `SELECT estado FROM core.accion_personal WHERE id = $1`,
-    [accionId],
-  );
-
-  if (accionR.rows[0]?.estado === "INSUBSISTENTE") {
-    return res.status(409).json({
-      message: "No se puede firmar una acción insubsistente",
-      code: "ACCION_INSUBSISTENTE",
-    });
-  }
-
-  const q = `
-    SELECT cargo_id, orden, rol_firma
-    FROM core.accion_firma
-    WHERE accion_id = $1 AND estado = 'PENDIENTE'
-    ORDER BY orden ASC
-    LIMIT 1;
-  `;
-  const { rows } = await pool.query(q, [accionId]);
-
-  if (!rows.length) {
-    return res.status(409).json({
-      message: "No hay firmas pendientes. Acción finalizada.",
-      code: "NO_PENDING_SIGNATURES",
-    });
-  }
-
-  const pend = rows[0];
-
-  if (!cargoPuedeActuarComo(cargo_id, pend.cargo_id)) {
-    return res.status(403).json({
-      message: "No autorizado para firmar este paso",
-      orden_pendiente: pend.orden,
-      rol_firma: pend.rol_firma,
-      cargo_requerido: pend.cargo_id,
-      tu_cargo: cargo_id,
-    });
-  }
-
-  next();
-}
 
 // POST /api/acciones
 // Crea una acción de personal (BORRADOR)
@@ -585,13 +531,9 @@ router.delete(
       }
 
       // Dependencias sin ON DELETE CASCADE hacia core.accion_personal.
-      // (accion_documento, accion_firma, accion_personal_anexo,
-      // accion_situacion_propuesta y notificacion_recepcion sí tienen
-      // CASCADE y se eliminan automáticamente junto con la acción).
-      await client.query(
-        `DELETE FROM core.notificacion_accion WHERE accion_id = $1;`,
-        [id],
-      );
+      // (accion_firma, accion_personal_anexo y accion_situacion_propuesta
+      // sí tienen CASCADE y se eliminan automáticamente junto con la
+      // acción).
       await client.query(
         `DELETE FROM core.notificacion_firma WHERE accion_id = $1;`,
         [id],
@@ -871,15 +813,6 @@ router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
 
   res.json(rows[0]);
 });
-
-// POST /api/acciones/:accionId/firmas/subir
-router.post(
-  "/:accionId/firmas/subir",
-  requireAuth,
-  requirePuedeFirmarPaso,
-  upload.single("file"),
-  subirFirmado,
-);
 
 // GET /api/acciones/:id/propuesta
 router.get("/:id/propuesta", requireAuth, async (req, res) => {

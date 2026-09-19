@@ -16,37 +16,6 @@ async function getCodigoElaboracion(accionId) {
   return rows[0]?.codigo_elaboracion || accionId;
 }
 
-export function uploadFirma() {
-  const storage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-      try {
-        const accionId = req.params.accionId;
-        const codigo = await getCodigoElaboracion(accionId);
-        
-        const base = path.resolve(process.env.UPLOADS_DIR || "uploads");
-        const dir = path.join(base, "acciones", codigo, "firmas");
-        ensureDir(dir);
-        cb(null, dir);
-      } catch (error) {
-        cb(error);
-      }
-    },
-    filename: (req, file, cb) => {
-      const ts = new Date().toISOString().replace(/[:.]/g, "-");
-      cb(null, `firmado_${ts}.pdf`);
-    },
-  });
-
-  return multer({
-    storage,
-    fileFilter: (req, file, cb) => {
-      if (file.mimetype !== "application/pdf") return cb(new Error("Solo PDF"));
-      cb(null, true);
-    },
-    limits: { fileSize: 20 * 1024 * 1024 },
-  });
-}
-
 export function uploadAnexo() {
   const storage = multer.diskStorage({
     destination: async (req, file, cb) => {

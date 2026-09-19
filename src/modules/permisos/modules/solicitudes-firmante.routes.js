@@ -9,6 +9,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { enviarCorreo } from "../../../shared/utils/email.service.js";
+import { calcularHorasPermiso } from "../../../shared/utils/calcularHorasPermiso.js";
 
 const router = Router();
 
@@ -86,15 +87,25 @@ router.post(
         .json({ message: "Todos los campos son requeridos" });
     }
 
-    const salida = new Date(`2000-01-01T${hora_salida}`);
-    const regreso = new Date(`2000-01-01T${hora_regreso}`);
-    const horas_solicitadas = (regreso - salida) / (1000 * 60 * 60);
+    const { horasBrutas, horasNetas } = calcularHorasPermiso(
+      hora_salida,
+      hora_regreso,
+    );
 
-    if (horas_solicitadas <= 0) {
+    if (horasBrutas <= 0) {
       return res
         .status(400)
         .json({ message: "La hora de regreso debe ser posterior" });
     }
+
+    if (horasNetas <= 0) {
+      return res.status(400).json({
+        message:
+          "El horario solicitado coincide completamente con el almuerzo y no genera horas de permiso",
+      });
+    }
+
+    const horas_solicitadas = horasNetas;
 
     const client = await pool.connect();
 
