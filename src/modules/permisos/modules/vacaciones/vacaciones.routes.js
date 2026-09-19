@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { generarPdfVacacion } from "../vacaciones/vacacionesPdf.controller.js";
-import { requireAuth, requireFirmante } from "../../../../shared/middleware/auth.middleware.js";
+import { requireAuth } from "../../../../shared/middleware/auth.middleware.js";
 
 // Importar módulos
 import vacSolicitudesServidorRoutes from "./vac-solicitudes-servidor.routes.js";
@@ -15,8 +15,11 @@ router.use(vacSolicitudesServidorRoutes);
 router.use(vacSolicitudesFirmanteRoutes);
 router.use(vacBandejaRoutes);
 
-// PDF base
-router.get("/:id/pdf-vacacion", generarPdfVacacion);
+// PDF base — antes sin autenticación (cualquiera podía descargar el PDF
+// de cualquier solicitud con solo adivinar el id, que es un entero
+// secuencial). requireAuth + verificación de dueño dentro del propio
+// controlador (generarPdfVacacion).
+router.get("/:id/pdf-vacacion", requireAuth, generarPdfVacacion);
 
 // RUTAS CON PARÁMETROS
 router.use(vacFirmasRoutes);

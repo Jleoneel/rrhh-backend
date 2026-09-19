@@ -25,7 +25,8 @@ router.get(
         TO_CHAR(vs.fecha_solicitud, 'YYYY-MM-DD') AS fecha_solicitud,
         TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
-        vs.created_at
+        vs.created_at,
+        vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath
       FROM core.vacacion_solicitud vs
       JOIN core.servidor sv ON sv.id = vs.servidor_id
       JOIN core.firmante f ON f.numero_identificacion = sv.numero_identificacion

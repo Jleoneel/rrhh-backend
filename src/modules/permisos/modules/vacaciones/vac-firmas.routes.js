@@ -494,11 +494,11 @@ router.post(
   },
 );
 
-// DESCARGAR ARCHIVO
+// DESCARGAR ARCHIVO — firmante (cualquiera en la cadena) o el servidor
+// dueño de la solicitud.
 router.get(
   "/:id/descargar-vacacion/:tipo",
   requireAuth,
-  requireFirmante,
   async (req, res) => {
     const { id, tipo } = req.params;
     const colMap = {
@@ -514,8 +514,24 @@ router.get(
         .json({ message: "Tipo inválido. Usa: jefe, superior, uath, base" });
 
     try {
-      if (tipo === "base")
-        return res.redirect(`/api/permisos/${id}/pdf-vacacion`);
+      if (req.user.tipo_usuario === "SERVIDOR") {
+        const propia = await pool.query(
+          `SELECT 1 FROM core.vacacion_solicitud WHERE id = $1 AND servidor_id = $2`,
+          [id, req.user.servidor_id],
+        );
+        if (!propia.rows.length) {
+          return res.status(403).json({ message: "No autorizado" });
+        }
+      } else if (req.user.tipo_usuario !== "FIRMANTE") {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+
+      if (tipo === "base") {
+        const token = req.query.token
+          ? `?token=${encodeURIComponent(req.query.token)}`
+          : "";
+        return res.redirect(`/api/permisos/${id}/pdf-vacacion${token}`);
+      }
 
       const col = colMap[tipo];
       const { rows } = await pool.query(

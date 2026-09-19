@@ -264,6 +264,20 @@ const _generarPdfBytes = async (id) => {
 export const generarPdfVacacion = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Verificar que quien pide el PDF es el servidor dueño de la
+    // solicitud, o un firmante (jefe/gerente/UATH que participa en la
+    // cadena de aprobación).
+    if (req.user.tipo_usuario === "SERVIDOR") {
+      const propia = await pool.query(
+        `SELECT 1 FROM core.vacacion_solicitud WHERE id = $1 AND servidor_id = $2`,
+        [id, req.user.servidor_id],
+      );
+      if (!propia.rows.length) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+    }
+
     const pdfBuffer = await _generarPdfBytes(id);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
