@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { loginByCedula, cambiarPassword } from "./auth.controller.js";
 import { requireAuth, requireFirmante } from "../../shared/middleware/auth.middleware.js";
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { pool } from "../../db.js";
 
 const router = Router();

@@ -4,7 +4,6 @@ import {
   requireFirmante,
 } from "../../shared/middleware/auth.middleware.js";
 import {
-  misFirmasPendientes,
   listarFirmasAccion,
   firmaPendienteAccion,
 } from "./firmas.controller.js";
@@ -20,7 +19,6 @@ import { resolverServidorPropio } from "../../shared/utils/resolverServidorPropi
 import { notificarRecepcionPendiente } from "../../shared/utils/notificarRecepcion.js";
 
 const router = Router();
-router.get("/pendientes", requireAuth, misFirmasPendientes);
 router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);
 router.get("/acciones/:accionId/pendiente", requireAuth, firmaPendienteAccion);
 

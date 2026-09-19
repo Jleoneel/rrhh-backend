@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import { pool } from "../../db.js";
 
 export async function resetPasswordServidor(req, res) {
