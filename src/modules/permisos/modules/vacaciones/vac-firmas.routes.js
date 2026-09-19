@@ -26,8 +26,9 @@ const obtenerP12 = async (firmante_id) => {
   return rows[0].p12_path;
 };
 
-// HELPER: guardar PDF firmado
-const guardarPdfFirmado = (signedPdf, solicitudId, tipo) => {
+// HELPER: guardar PDF firmado (también usado por
+// vac-solicitudes-servidor.routes.js para la firma del solicitante)
+export const guardarPdfFirmado = (signedPdf, solicitudId, tipo) => {
   const dir = path.resolve(
     process.env.UPLOADS_DIR || "uploads",
     "vacaciones",
@@ -93,8 +94,19 @@ router.post(
         p12Path.replace("/uploads/", ""),
       );
 
-      // Generar PDF base
-      const pdfBuffer = await generarPdfVacacionBuffer(id);
+      // Generar PDF base — si el solicitante ya firmó al crear la
+      // solicitud (ver vac-solicitudes-servidor.routes.js), partir de ESE
+      // PDF para no perder su firma; si no, generar uno nuevo.
+      let pdfBuffer;
+      if (solicitud.archivo_solicitante) {
+        const filePath = path.resolve(
+          process.env.UPLOADS_DIR || "uploads",
+          solicitud.archivo_solicitante.replace("/uploads/", ""),
+        );
+        pdfBuffer = fs.readFileSync(filePath);
+      } else {
+        pdfBuffer = await generarPdfVacacionBuffer(id);
+      }
 
       // Firmar con p12
       let signedPdf;
@@ -502,6 +514,7 @@ router.get(
   async (req, res) => {
     const { id, tipo } = req.params;
     const colMap = {
+      solicitante: "archivo_solicitante",
       jefe: "archivo_jefe",
       superior: "archivo_superior",
       uath: "archivo_uath",
@@ -511,7 +524,10 @@ router.get(
     if (!Object.prototype.hasOwnProperty.call(colMap, tipo))
       return res
         .status(400)
-        .json({ message: "Tipo inválido. Usa: jefe, superior, uath, base" });
+        .json({
+          message:
+            "Tipo inválido. Usa: solicitante, jefe, superior, uath, base",
+        });
 
     try {
       if (req.user.tipo_usuario === "SERVIDOR") {

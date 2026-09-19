@@ -1,4 +1,5 @@
 import { Router } from "express";
+import path from "path";
 import { pool } from "../../../../db.js";
 import {
   requireAuth,
@@ -6,6 +7,9 @@ import {
 } from "../../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../../shared/utils/sseManager.js";
 import { enviarCorreo } from "../../../../shared/utils/email.service.js";
+import { firmarPdfConP12 } from "../../../../shared/utils/firmarPdf.service.js";
+import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
+import { guardarPdfFirmado } from "./vac-firmas.routes.js";
 
 const router = Router();
 
@@ -26,7 +30,7 @@ router.get(
         TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
         vs.created_at,
-        vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath
+        vs.archivo_solicitante, vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath
       FROM core.vacacion_solicitud vs
       WHERE vs.servidor_id = $1
       ORDER BY vs.created_at DESC
@@ -56,6 +60,7 @@ router.post(
       dias_solicitados,
       telefono_domicilio,
       telefono_movil,
+      password,
     } = req.body;
 
     if (!tipo || !fecha_inicio || !fecha_fin || !dias_solicitados)
@@ -68,6 +73,24 @@ router.post(
       return res
         .status(400)
         .json({ message: "La fecha fin debe ser posterior a la fecha inicio" });
+    // Firmar electrónicamente es opcional: el servidor decide si quiere
+    // firmar con su P12 (manda password) o enviar sin firmar, para que la
+    // firmen los jefes en la cadena normal (igual que si no tuviera
+    // certificado registrado).
+    let p12Info = null;
+    if (password) {
+      const p12R = await pool.query(
+        `SELECT p12_path, p12_activo, nombres FROM core.servidor WHERE id = $1`,
+        [servidor_id],
+      );
+      if (!p12R.rows[0]?.p12_path || !p12R.rows[0]?.p12_activo) {
+        return res.status(400).json({
+          message:
+            "No tienes un certificado digital registrado. Ve a Mi Certificado para poder firmar tu solicitud.",
+        });
+      }
+      p12Info = p12R.rows[0];
+    }
 
     const client = await pool.connect();
     try {
@@ -170,6 +193,54 @@ router.post(
 
       await client.query("COMMIT");
 
+      const nuevaSolicitud = rows[0];
+
+      // Firmar la solicitud recién creada con el certificado del propio
+      // servidor (línea "f)." de la plantilla) — solo si eligió hacerlo
+      // (mandó password). Si no, queda sin firmar y sigue el flujo normal:
+      // el jefe la firma con generarPdfVacacionBuffer como base (ver
+      // confirmar-firma-jefe). Si la firma falla (ej. contraseña
+      // incorrecta), se deshace la solicitud en vez de dejarla a medias o
+      // notificar al jefe de algo sin firmar.
+      if (p12Info) {
+        try {
+          const pdfBuffer = await generarPdfVacacionBuffer(nuevaSolicitud.id);
+          const p12FullPath = path.resolve(
+            process.env.UPLOADS_DIR || "uploads",
+            p12Info.p12_path.replace("/uploads/", ""),
+          );
+          const signedPdf = await firmarPdfConP12({
+            pdfInputBuffer: pdfBuffer,
+            p12Path: p12FullPath,
+            p12Password: password,
+            firmante: p12Info.nombres,
+            cargo: "Solicitante",
+            posicion: "solicitante",
+          });
+          const archivoPath = guardarPdfFirmado(
+            signedPdf,
+            nuevaSolicitud.id,
+            "solicitante",
+          );
+          await pool.query(
+            `UPDATE core.vacacion_solicitud SET archivo_solicitante = $1 WHERE id = $2`,
+            [archivoPath, nuevaSolicitud.id],
+          );
+          nuevaSolicitud.archivo_solicitante = archivoPath;
+        } catch (err) {
+          await pool.query(
+            `DELETE FROM core.vacacion_solicitud WHERE id = $1`,
+            [nuevaSolicitud.id],
+          );
+          const msg =
+            err.message?.includes("password") ||
+            err.message?.includes("passphrase")
+              ? "Contraseña del certificado incorrecta"
+              : "Error firmando la solicitud: " + err.message;
+          return res.status(400).json({ message: msg });
+        }
+      }
+
       if (jefe_firmante_id) {
         await pool.query(
           `
@@ -213,7 +284,7 @@ router.post(
         }
       }
 
-      return res.status(201).json(rows[0]);
+      return res.status(201).json(nuevaSolicitud);
     } catch (err) {
       await client.query("ROLLBACK");
       return res

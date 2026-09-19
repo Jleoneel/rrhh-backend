@@ -19,7 +19,13 @@ const generarQRBuffer = async (texto) => {
   return Buffer.from(base64, "base64");
 };
 
+// Coordenadas verificadas con pdftotext -bbox sobre la plantilla: la
+// linea "f). ______" (firma del solicitante, seccion DATOS DEL
+// SOLICITANTE) esta en x=216.3..334.8, y=305.2..314.7 (origen arriba-
+// izquierda). Convertido a coordenadas pdf-lib (origen abajo-izquierda,
+// H=841.89): el recuadro queda justo sobre esa linea.
 const POSICIONES = {
+  solicitante: { x: 226, y: 527, width: 190, height: 24 },
   jefe: { x: 60, y: 300, width: 160, height: 28 },
   superior: { x: 310, y: 300, width: 180, height: 28 },
   uath: { x: 160, y: 185, width: 180, height: 28 },
