@@ -16,12 +16,25 @@ router.get("/saldos", requireAuth, requireFirmante, async (req, res) => {
         (sp.horas_totales - sp.horas_usadas) AS horas_disponibles,
         sp.fecha_ingreso, sp.updated_at,
         sv.nombres, sv.numero_identificacion AS cedula,
-        u.nombre AS unidad_organica
+        u.nombre AS unidad_organica,
+        COALESCE(mov.movimientos, '[]'::json) AS movimientos
       FROM core.saldo_permiso sp
       JOIN core.servidor sv ON sv.id = sp.servidor_id
       LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
       LEFT JOIN core.puesto p ON p.id = ap.puesto_id
       LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'tipo', pm.tipo,
+            'descripcion', pm.descripcion,
+            'horas', pm.horas,
+            'created_at', pm.created_at
+          ) ORDER BY pm.created_at DESC
+        ) AS movimientos
+        FROM core.permiso_movimiento pm
+        WHERE pm.servidor_id = sp.servidor_id
+      ) mov ON true
       ORDER BY sv.nombres ASC;
     `);
     return res.json(rows);
