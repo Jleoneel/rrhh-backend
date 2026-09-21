@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { pool } from "../../db.js";
-import { requireAuth } from "../../shared/middleware/auth.middleware.js";
+import { pool } from "../../../db.js";
+import { requireAuth } from "../../../shared/middleware/auth.middleware.js";
 import {
   addConnection,
   removeConnection,
-} from "../../shared/utils/sseManager.js";
-import { resolverServidorPropio } from "../../shared/utils/resolverServidorPropio.js";
+} from "../../../shared/utils/sseManager.js";
+import { resolverServidorPropio } from "../../../shared/utils/resolverServidorPropio.js";
 
 const router = Router();
 

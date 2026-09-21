@@ -2,21 +2,21 @@ import { Router } from "express";
 import {
   requireAuth,
   requireFirmante,
-} from "../../shared/middleware/auth.middleware.js";
+} from "../../../shared/middleware/auth.middleware.js";
 import {
   listarFirmasAccion,
   firmaPendienteAccion,
 } from "./firmas.controller.js";
-import { firmarPdfAccionConP12 } from "../../shared/utils/firmarPdf.service.js";
-import { generarPdfAccionBuffer } from "../acciones/accionesPdf.controller.js";
+import { firmarPdfAccionConP12 } from "../../../shared/utils/firmarPdf.service.js";
+import { generarPdfAccionBuffer } from "../accionesPdf.controller.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { pool } from "../../db.js";
-import { notifyCargoId, notifyServidorId } from "../../shared/utils/sseManager.js";
-import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
-import { resolverServidorPropio } from "../../shared/utils/resolverServidorPropio.js";
-import { notificarRecepcionPendiente } from "../../shared/utils/notificarRecepcion.js";
+import { pool } from "../../../db.js";
+import { notifyCargoId, notifyServidorId } from "../../../shared/utils/sseManager.js";
+import { cargoIdsEquivalentes } from "../../../shared/constants/cargos.js";
+import { resolverServidorPropio } from "../../../shared/utils/resolverServidorPropio.js";
+import { notificarRecepcionPendiente } from "../../../shared/utils/notificarRecepcion.js";
 
 const router = Router();
 router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);

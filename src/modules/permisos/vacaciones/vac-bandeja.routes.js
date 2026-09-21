@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { pool } from "../../../../db.js";
-import { requireAuth, requireFirmante } from "../../../../shared/middleware/auth.middleware.js";
-import { notifyCargoId } from "../../../../shared/utils/sseManager.js";
+import { pool } from "../../../db.js";
+import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 
 const router = Router();
 

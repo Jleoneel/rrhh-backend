@@ -9,15 +9,15 @@ dotenv.config();
 import accionesRoutes from "./modules/acciones/acciones.routes.js";
 import servidoresRoutes from "./modules/servidores/servidores.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
-import firmasRoutes from "./modules/firmas/firmas.routes.js";
+import firmasRoutes from "./modules/acciones/firmas/firmas.routes.js";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
 import tiposAcccionRoutes from "./modules/acciones/tiposAcccion.routes.js";
 import catalogosRoutes from "./modules/catalogos/catalogos.routes.js";
 import accionesPdfRoutes from "./modules/acciones/accionesPdf.routes.js";
 import firmantesRoutes from "./modules/firmantes/firmantes.routes.js";
 import distributivoRoutes from "./modules/distributivo/distributivo.routes.js";
-import firmaNotificacionRoutes from "./modules/firmas/firmaNotificacion.routes.js";
-import recepcionNotificacionRoutes from "./modules/firmas/recepcionNotificacion.routes.js";
+import firmaNotificacionRoutes from "./modules/acciones/firmas/firmaNotificacion.routes.js";
+import recepcionNotificacionRoutes from "./modules/acciones/firmas/recepcionNotificacion.routes.js";
 import permisosRoutes from "./modules/permisos/permisos.routes.js"
 import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
 import distributivoposicionalRoutes from "./modules/distributivo/distributivo-posicional.routes.js";

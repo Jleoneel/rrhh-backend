@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../../shared/middleware/auth.middleware.js";
+import { requireAuth } from "../../../shared/middleware/auth.middleware.js";
 import {
   stream,
   listar,

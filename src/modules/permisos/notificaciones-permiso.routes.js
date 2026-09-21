@@ -1,14 +1,14 @@
 import { Router } from "express";
-import { pool } from "../../../db.js";
+import { pool } from "../../db.js";
 import {
   requireAuth,
   requireFirmante,
   requireServidor,
-} from "../../../shared/middleware/auth.middleware.js";
+} from "../../shared/middleware/auth.middleware.js";
 import {
   addConnection,
   removeConnection,
-} from "../../../shared/utils/sseManager.js";
+} from "../../shared/utils/sseManager.js";
 
 const router = Router();
 // SSE para firmantes (jefes)

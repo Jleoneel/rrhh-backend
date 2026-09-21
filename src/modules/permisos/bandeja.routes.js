@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { pool } from "../../../db.js";
+import { pool } from "../../db.js";
 import {
   requireAuth,
   requireFirmante,
-} from "../../../shared/middleware/auth.middleware.js";
-import { notifyCargoId } from "../../../shared/utils/sseManager.js";
-import { enviarCorreo } from "../../../shared/utils/email.service.js";
+} from "../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../shared/utils/sseManager.js";
+import { enviarCorreo } from "../../shared/utils/email.service.js";
 
 const router = Router();
 

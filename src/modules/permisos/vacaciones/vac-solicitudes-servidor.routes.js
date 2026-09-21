@@ -1,13 +1,13 @@
 import { Router } from "express";
 import path from "path";
-import { pool } from "../../../../db.js";
+import { pool } from "../../../db.js";
 import {
   requireAuth,
   requireServidor,
-} from "../../../../shared/middleware/auth.middleware.js";
-import { notifyCargoId } from "../../../../shared/utils/sseManager.js";
-import { enviarCorreo } from "../../../../shared/utils/email.service.js";
-import { firmarPdfConP12 } from "../../../../shared/utils/firmarPdf.service.js";
+} from "../../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../../shared/utils/sseManager.js";
+import { enviarCorreo } from "../../../shared/utils/email.service.js";
+import { firmarPdfConP12 } from "../../../shared/utils/firmarPdf.service.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 import { guardarPdfFirmado } from "./vac-firmas.routes.js";
 

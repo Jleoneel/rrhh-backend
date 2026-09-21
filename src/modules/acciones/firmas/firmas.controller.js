@@ -1,4 +1,4 @@
-import { pool } from "../../db.js";
+import { pool } from "../../../db.js";
 
 // Controlador para listar todas las firmas de una acción personal, con detalles de documento y firmante
 export async function listarFirmasAccion(req, res) {

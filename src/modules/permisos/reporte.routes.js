@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { pool } from "../../../db.js";
-import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
+import { pool } from "../../db.js";
+import { requireAuth, requireFirmante } from "../../shared/middleware/auth.middleware.js";
 
 const router = Router();
 

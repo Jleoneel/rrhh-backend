@@ -1,6 +1,6 @@
-import { pool } from "../../db.js";
-import { addConnection, removeConnection } from "../../shared/utils/sseManager.js";
-import { cargoIdsEquivalentes } from "../../shared/constants/cargos.js";
+import { pool } from "../../../db.js";
+import { addConnection, removeConnection } from "../../../shared/utils/sseManager.js";
+import { cargoIdsEquivalentes } from "../../../shared/constants/cargos.js";
 
 // Abre la conexión SSE para el cargo logueado
 export function stream(req, res) {

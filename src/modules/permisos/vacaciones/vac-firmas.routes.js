@@ -1,18 +1,18 @@
 import { Router } from "express";
-import { pool } from "../../../../db.js";
+import { pool } from "../../../db.js";
 import {
   requireAuth,
   requireFirmante,
-} from "../../../../shared/middleware/auth.middleware.js";
-import { notifyCargoId } from "../../../../shared/utils/sseManager.js";
+} from "../../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 import {
   firmarPdfConP12,
   marcarAprobadoEnPdf,
-} from "../../../../shared/utils/firmarPdf.service.js";
+} from "../../../shared/utils/firmarPdf.service.js";
 import { generarPdfVacacionBuffer } from "../vacaciones/vacacionesPdf.controller.js";
 import path from "path";
 import fs from "fs";
-import { enviarCorreo } from "../../../../shared/utils/email.service.js";
+import { enviarCorreo } from "../../../shared/utils/email.service.js";
 
 const router = Router();
 

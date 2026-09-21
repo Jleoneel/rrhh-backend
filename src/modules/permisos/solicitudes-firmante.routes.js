@@ -1,15 +1,15 @@
 import { Router } from "express";
-import { pool } from "../../../db.js";
+import { pool } from "../../db.js";
 import {
   requireAuth,
   requireFirmante,
-} from "../../../shared/middleware/auth.middleware.js";
-import { notifyCargoId } from "../../../shared/utils/sseManager.js";
+} from "../../shared/middleware/auth.middleware.js";
+import { notifyCargoId } from "../../shared/utils/sseManager.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { enviarCorreo } from "../../../shared/utils/email.service.js";
-import { calcularHorasPermiso } from "../../../shared/utils/calcularHorasPermiso.js";
+import { enviarCorreo } from "../../shared/utils/email.service.js";
+import { calcularHorasPermiso } from "../../shared/utils/calcularHorasPermiso.js";
 
 const router = Router();
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { generarPdfVacacion } from "../vacaciones/vacacionesPdf.controller.js";
-import { requireAuth } from "../../../../shared/middleware/auth.middleware.js";
+import { requireAuth } from "../../../shared/middleware/auth.middleware.js";
 
 // Importar módulos
 import vacSolicitudesServidorRoutes from "./vac-solicitudes-servidor.routes.js";
