@@ -4,7 +4,12 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 
-dotenv.config();
+// override: true — en producción, pm2 puede mantener variables de entorno
+// cacheadas de un arranque/ecosystem anterior; sin esto, dotenv detecta que
+// ya existen y NO las actualiza con lo que hay en .env (se ve en los logs
+// como "injecting env (0) from .env"), dejando vivo un SMTP_SECURE/SMTP_PORT
+// desactualizado aunque .env esté correcto.
+dotenv.config({ override: true });
 
 import accionesRoutes from "./modules/acciones/acciones.routes.js";
 import servidoresRoutes from "./modules/servidores/servidores.routes.js";

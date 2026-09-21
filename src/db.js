@@ -8,8 +8,11 @@ const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Carga el .env desde la raíz del proyecto (un nivel arriba de /src)
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+// Carga el .env desde la raíz del proyecto (un nivel arriba de /src).
+// override: true — ver la nota en server.js: sin esto, pm2 puede mantener
+// process.env cacheado de un arranque anterior y las ediciones a .env no
+// surten efecto.
+dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
