@@ -22,7 +22,7 @@ const smtpConfig = {
 // puerto STARTTLS (587) con secure=true (o uno de TLS implícito, 465, con
 // secure=false) produce el error OpenSSL "wrong version number".
 console.log(
-  `[EMAIL] Transporter SMTP: host=${smtpConfig.host} port=${smtpConfig.port} secure=${smtpConfig.secure} user=${smtpConfig.auth.user}`,
+  `[EMAIL] Transporter SMTP: host=${smtpConfig.host} port=${smtpConfig.port} secure=${smtpConfig.secure} user=${smtpConfig.auth.user} from=${process.env.SMTP_FROM || "noreply@hpvc.gob.ec"}`,
 );
 
 const transporter = nodemailer.createTransport(smtpConfig);
@@ -534,8 +534,13 @@ export const enviarCorreo = async (destinatario, plantilla, datos) => {
 
     const { subject, html } = plantillas[plantilla](datos);
 
+    // El remitente debe ser un correo verificado como "Sender" en Brevo,
+    // NO el usuario del login SMTP (abfac6001@smtp-brevo.com es solo la
+    // credencial de autenticación, no una dirección real) — usarlo como
+    // "from" hace que Brevo acepte el mensaje por SMTP pero lo bloquee
+    // después por remitente no verificado, sin que el backend vea error.
     await transporter.sendMail({
-      from: `"SITH - Talento Humano HPVCB" <${process.env.SMTP_USER || "noreply@hpvc.gob.ec"}>`,
+      from: `"SITH - Talento Humano HPVCB" <${process.env.SMTP_FROM || "noreply@hpvc.gob.ec"}>`,
       to: destinatario,
       subject,
       html,
