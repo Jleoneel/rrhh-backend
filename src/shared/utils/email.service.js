@@ -4,7 +4,7 @@ const LOGO_URL =
   process.env.LOGO_URL ||
   "https://static.wixstatic.com/media/1e340b_5d822741e4b34742956a8816352a1bdb~mv2.png/v1/fill/w_308,h_160,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Image-empty-state.png";
 //  CONFIGURACIÓN
-const transporter = nodemailer.createTransport({
+const smtpConfig = {
   host: process.env.SMTP_HOST || "mail.hpvc.gob.ec",
   port: parseInt(process.env.SMTP_PORT) || 25,
   secure: process.env.SMTP_SECURE === "true" || false,
@@ -15,7 +15,17 @@ const transporter = nodemailer.createTransport({
   tls: {
     rejectUnauthorized: false,
   },
-});
+};
+
+// Log de arranque sin credenciales: confirma en los logs del servidor qué
+// valores de host/puerto/secure quedaron realmente activos, ya que un
+// puerto STARTTLS (587) con secure=true (o uno de TLS implícito, 465, con
+// secure=false) produce el error OpenSSL "wrong version number".
+console.log(
+  `[EMAIL] Transporter SMTP: host=${smtpConfig.host} port=${smtpConfig.port} secure=${smtpConfig.secure} user=${smtpConfig.auth.user}`,
+);
+
+const transporter = nodemailer.createTransport(smtpConfig);
 
 //  COLORES INSTITUCIONALES
 const COLORS = {
