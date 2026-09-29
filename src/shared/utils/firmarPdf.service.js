@@ -86,6 +86,30 @@ const getFechaHoraEcuador = () => {
   return moment().tz("America/Guayaquil");
 };
 
+// Margen de seguridad (bytes) sobre el tamaño de firma medido, para
+// absorber la pequeña variación entre firmas del mismo .p12 (la fecha de
+// firma va en un atributo autenticado de longitud fija, así que la
+// variación real es mínima, pero se deja margen por robustez).
+const MARGEN_SEGURIDAD_FIRMA = 2048;
+
+// El tamaño real de la estructura PKCS#7 depende únicamente del
+// certificado .p12 (cuántos certificados trae la cadena, tamaño de la
+// llave) — NO del contenido del PDF firmado (verificado empíricamente:
+// firmar un buffer de 16 bytes o uno de 50KB con el mismo .p12 produce
+// exactamente el mismo número de bytes de firma). Por eso se puede medir
+// el tamaño real firmando un buffer mínimo de prueba con el mismo .p12,
+// antes de reservar el placeholder — en vez de adivinar un número fijo
+// que un certificado con una cadena más larga puede volver a superar
+// (como pasó: un placeholder de 16000 no alcanzó para una firma de
+// 16937 bytes reales).
+const calcularSignatureLength = async (p12Buffer, p12Password) => {
+  const signerDePrueba = new P12Signer(p12Buffer, {
+    passphrase: p12Password,
+  });
+  const rawDePrueba = await signerDePrueba.sign(Buffer.from("medicion"));
+  return (rawDePrueba.length + MARGEN_SEGURIDAD_FIRMA) * 2;
+};
+
 // FIRMA SIMPLIFICADA PARA VACACIONES
 export const firmarPdfConP12 = async ({
   pdfInputBuffer,
@@ -146,6 +170,12 @@ export const firmarPdfConP12 = async ({
       color: rgb(0, 0, 0),
     });
 
+    const p12Buffer = fs.readFileSync(p12Path);
+    const signatureLength = await calcularSignatureLength(
+      p12Buffer,
+      p12Password,
+    );
+
     // Placeholder para firma digital
     await pdflibAddPlaceholder({
       pdfDoc,
@@ -153,7 +183,7 @@ export const firmarPdfConP12 = async ({
       contactInfo: "talento.humano@hpvc.gob.ec",
       name: firmante || "Desconocido",
       location: "Portoviejo, Manabi, Ecuador",
-      signatureLength: 16000,
+      signatureLength,
       widgetRect: [pos.x, pos.y, pos.x + pos.width, pos.y + pos.height],
       pageNumber: 0,
     });
@@ -161,8 +191,6 @@ export const firmarPdfConP12 = async ({
     const pdfWithPlaceholderBuffer = Buffer.from(
       await pdfDoc.save({ addDefaultPage: false }),
     );
-
-    const p12Buffer = fs.readFileSync(p12Path);
     const signer = new P12Signer(p12Buffer, { passphrase: p12Password });
     const signedPdf = await signpdf.sign(pdfWithPlaceholderBuffer, signer);
 
@@ -256,6 +284,12 @@ export const firmarPdfAccionConP12 = async ({
       }
     }
 
+    const p12Buffer = fs.readFileSync(p12Path);
+    const signatureLength = await calcularSignatureLength(
+      p12Buffer,
+      p12Password,
+    );
+
     // Placeholder firma digital
     await pdflibAddPlaceholder({
       pdfDoc,
@@ -263,13 +297,12 @@ export const firmarPdfAccionConP12 = async ({
       contactInfo: "talento.humano@hpvc.gob.ec",
       name: firmante || "Desconocido",
       location: "Portoviejo, Manabi, Ecuador",
-      signatureLength: 32768,
+      signatureLength,
       widgetRect: [pos.x, pos.y, pos.x + pos.width, pos.y + pos.height],
       pageNumber: pos.page,
     });
 
     const pdfBuffer = Buffer.from(await pdfDoc.save({ addDefaultPage: false }));
-    const p12Buffer = fs.readFileSync(p12Path);
     const signer = new P12Signer(p12Buffer, { passphrase: p12Password });
     const signedPdf = await signpdf.sign(pdfBuffer, signer);
 
