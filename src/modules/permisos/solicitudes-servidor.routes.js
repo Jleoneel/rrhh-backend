@@ -10,6 +10,11 @@ import path from "path";
 import fs from "fs";
 import { enviarCorreo } from "../../shared/utils/email.service.js";
 import { calcularHorasPermiso } from "../../shared/utils/calcularHorasPermiso.js";
+import {
+  filtroArchivoEvidencia,
+  nombreArchivoEvidencia,
+  TAMANO_MAXIMO_EVIDENCIA,
+} from "../../shared/utils/evidenciaUpload.js";
 
 const router = Router();
 
@@ -26,18 +31,14 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    cb(null, `evidencia_${Date.now()}.pdf`);
+    cb(null, nombreArchivoEvidencia(file));
   },
 });
 
 const upload = multer({
   storage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "application/pdf") {
-      return cb(new Error("Solo se permiten archivos PDF"));
-    }
-    cb(null, true);
-  },
+  fileFilter: filtroArchivoEvidencia,
+  limits: { fileSize: TAMANO_MAXIMO_EVIDENCIA },
 });
 
 // GET /api/permisos/mis-permisos
