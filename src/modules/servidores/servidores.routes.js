@@ -82,6 +82,10 @@ router.post(
       req.body?.numero_identificacion ?? "",
     ).trim();
     const nombres = String(req.body?.nombres ?? "").trim();
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const fechaIngreso = req.body?.fecha_ingreso
+      ? String(req.body.fecha_ingreso).trim()
+      : null;
     const regimenLaboralId = req.body?.regimen_laboral_id || null;
     const unidadOrganicaId = req.body?.unidad_organica_id || null;
     const denominacionPuestoId = req.body?.denominacion_puesto_id || null;
@@ -104,6 +108,28 @@ router.post(
     }
     if (!nombres) {
       return res.status(400).json({ message: "Los nombres son requeridos" });
+    }
+    // email y fecha_ingreso son obligatorios aquí porque, a diferencia de
+    // un servidor que llega por el distributivo oficial (que siempre trae
+    // ambos), un servidor MANUAL no tiene ninguna otra vía para
+    // completarlos después — y de ellos dependen, respectivamente, todo
+    // el envío de correos de notificación y el cron de acumulación
+    // mensual de saldo de permisos (que excluye en silencio a cualquier
+    // servidor con fecha_ingreso NULL).
+    if (!email || !email.includes("@")) {
+      return res
+        .status(400)
+        .json({ message: "El correo institucional es requerido" });
+    }
+    if (!fechaIngreso || !/^\d{4}-\d{2}-\d{2}$/.test(fechaIngreso)) {
+      return res
+        .status(400)
+        .json({ message: "La fecha de ingreso es requerida" });
+    }
+    if (!canton) {
+      return res.status(400).json({
+        message: "El lugar de trabajo / cantón es requerido",
+      });
     }
     if (!regimenLaboralId) {
       return res
@@ -206,11 +232,11 @@ router.post(
       const servidorR = await client.query(
         `
         INSERT INTO core.servidor
-          (tipo_identificacion, numero_identificacion, nombres, estado_servidor, origen, canton)
-        VALUES ('Cedula', $1, $2, 'ACTIVO', 'MANUAL', $3)
+          (tipo_identificacion, numero_identificacion, nombres, estado_servidor, origen, canton, email, fecha_ingreso)
+        VALUES ('Cedula', $1, $2, 'ACTIVO', 'MANUAL', $3, $4, $5)
         RETURNING id;
         `,
-        [numeroIdentificacion, nombres, canton],
+        [numeroIdentificacion, nombres, canton, email, fechaIngreso],
       );
       const servidorId = servidorR.rows[0].id;
 
@@ -283,7 +309,8 @@ router.get(
     const { servidorId } = req.params;
     try {
       const servidorR = await pool.query(
-        `SELECT id, numero_identificacion, nombres, canton, origen
+        `SELECT id, numero_identificacion, nombres, canton, email, origen,
+                TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso
          FROM core.servidor WHERE id = $1`,
         [servidorId],
       );
@@ -317,6 +344,8 @@ router.get(
         numero_identificacion: servidor.numero_identificacion,
         nombres: servidor.nombres,
         canton: servidor.canton,
+        email: servidor.email,
+        fecha_ingreso: servidor.fecha_ingreso,
         ...(puestoR.rows[0] || {}),
       });
     } catch (error) {
@@ -341,6 +370,10 @@ router.put(
       req.body?.numero_identificacion ?? "",
     ).trim();
     const nombres = String(req.body?.nombres ?? "").trim();
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const fechaIngreso = req.body?.fecha_ingreso
+      ? String(req.body.fecha_ingreso).trim()
+      : null;
     const regimenLaboralId = req.body?.regimen_laboral_id || null;
     const unidadOrganicaId = req.body?.unidad_organica_id || null;
     const denominacionPuestoId = req.body?.denominacion_puesto_id || null;
@@ -358,6 +391,21 @@ router.put(
     }
     if (!nombres) {
       return res.status(400).json({ message: "Los nombres son requeridos" });
+    }
+    if (!email || !email.includes("@")) {
+      return res
+        .status(400)
+        .json({ message: "El correo institucional es requerido" });
+    }
+    if (!fechaIngreso || !/^\d{4}-\d{2}-\d{2}$/.test(fechaIngreso)) {
+      return res
+        .status(400)
+        .json({ message: "La fecha de ingreso es requerida" });
+    }
+    if (!canton) {
+      return res.status(400).json({
+        message: "El lugar de trabajo / cantón es requerido",
+      });
     }
     if (!regimenLaboralId) {
       return res
@@ -495,9 +543,9 @@ router.put(
 
       await client.query(
         `UPDATE core.servidor
-         SET numero_identificacion = $1, nombres = $2, canton = $3
-         WHERE id = $4;`,
-        [numeroIdentificacion, nombres, canton, servidorId],
+         SET numero_identificacion = $1, nombres = $2, canton = $3, email = $4, fecha_ingreso = $5
+         WHERE id = $6;`,
+        [numeroIdentificacion, nombres, canton, email, fechaIngreso, servidorId],
       );
 
       await client.query(

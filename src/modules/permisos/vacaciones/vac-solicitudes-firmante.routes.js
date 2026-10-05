@@ -185,7 +185,7 @@ router.post(
 
       const unidadR = await client.query(
         `
-      SELECT jefe_id, jefe_superior_id FROM core.unidad_organica WHERE id = $1
+      SELECT jefe_id, jefe_superior_id, nombre FROM core.unidad_organica WHERE id = $1
     `,
         [unidad_organica_id],
       );
@@ -310,7 +310,7 @@ router.post(
 
         const firmanteSvR = await pool.query(
           `
-    SELECT sv.nombres FROM core.servidor sv
+    SELECT sv.nombres, sv.numero_identificacion FROM core.servidor sv
     JOIN core.firmante f ON f.numero_identificacion = sv.numero_identificacion
     WHERE f.id = $1
   `,
@@ -321,6 +321,8 @@ router.post(
           await enviarCorreo(jefeR.rows[0].email, "nuevaSolicitudVacacion", {
             jefe_nombre: jefeR.rows[0].nombre,
             servidor_nombre: firmanteSvR.rows[0]?.nombres || "",
+            cedula: firmanteSvR.rows[0]?.numero_identificacion || "",
+            unidad: unidadR.rows[0]?.nombre || "",
             fecha_inicio,
             fecha_fin,
             dias: dias_solicitados,

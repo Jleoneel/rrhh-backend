@@ -51,6 +51,7 @@ const plantillas = {
     unidad,
     fecha,
     tipo,
+    horario,
     horas,
     motivo,
   }) => ({
@@ -113,6 +114,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
               </tr>
+              ${
+                horario
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horario:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${horario}</td>
+              </tr>`
+                  : ""
+              }
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horas:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${horas}</td>
@@ -128,13 +138,13 @@ const plantillas = {
               }
             </table>
           </div>
-          
+
           <p style="color: ${COLORS.text}; margin: 0 0 24px; line-height: 1.5;">
             Por favor, ingrese al sistema SITH para revisar y responder esta solicitud.
           </p>
-          
+
           <div style="text-align: center; margin: 28px 0 16px;">
-            <a href="${process.env.FRONTEND_URL}/permisos/bandeja" 
+            <a href="${process.env.FRONTEND_URL}/permisos/bandeja"
                style="display: inline-block; background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); color: ${COLORS.white}; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
               Ver Solicitud
             </a>
@@ -326,7 +336,14 @@ const plantillas = {
     `,
   }),
 
-  solicitudNegada: ({ servidor_nombre, tipo, observacion, negado_por }) => ({
+  solicitudNegada: ({
+    servidor_nombre,
+    tipo,
+    unidad,
+    periodo,
+    observacion,
+    negado_por,
+  }) => ({
     subject: `[SITH] Actualización sobre su solicitud - ${servidor_nombre}`,
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -347,7 +364,35 @@ const plantillas = {
           <p style="color: ${COLORS.text}; margin: 0 0 20px; line-height: 1.5;">
             Le informamos que su solicitud de <strong>${tipo}</strong> ha sido <strong style="color: ${COLORS.danger};">negada</strong>.
           </p>
-          
+
+          ${
+            unidad || periodo
+              ? `
+          <div style="background: ${COLORS.background}; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid ${COLORS.danger};">
+            <table style="width: 100%; border-collapse: collapse;">
+              ${
+                unidad
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Unidad:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${unidad}</td>
+              </tr>`
+                  : ""
+              }
+              ${
+                periodo
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Período:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${periodo}</td>
+              </tr>`
+                  : ""
+              }
+            </table>
+          </div>`
+              : ""
+          }
+
           <div style="background: ${COLORS.danger}10; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid ${COLORS.danger}30;">
             <p style="margin: 0 0 8px; color: ${COLORS.danger}; font-weight: 600;">Motivo:</p>
             <p style="margin: 0; color: ${COLORS.text}; line-height: 1.5;">${observacion || "No se especificó un motivo."}</p>
@@ -385,6 +430,7 @@ const plantillas = {
     cedula,
     tipo,
     fecha,
+    horario,
     horas,
     aprobado_por,
   }) => ({
@@ -428,6 +474,15 @@ const plantillas = {
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
                 <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
               </tr>
+              ${
+                horario
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horario:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${horario}</td>
+              </tr>`
+                  : ""
+              }
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horas aprobadas:</td>
                 <td style="padding: 8px 0; color: ${COLORS.secondary}; font-weight: 700; font-size: 14px;">${horas}</td>

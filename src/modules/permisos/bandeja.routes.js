@@ -47,7 +47,7 @@ router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
 router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
   const { id } = req.params;
   const { estado, observacion } = req.body;
-  const { firmante_id } = req.user;
+  const { firmante_id, nombre: firmante_nombre } = req.user;
 
   if (!["APROBADO", "RECHAZADO"].includes(estado)) {
     return res
@@ -173,7 +173,7 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
     // ← AGREGAR correo al servidor
     const svEmailR = await pool.query(
       `
-  SELECT sv.nombres, sv.email FROM core.servidor sv WHERE sv.id = $1
+  SELECT sv.nombres, sv.numero_identificacion, sv.email FROM core.servidor sv WHERE sv.id = $1
 `,
       [solicitud.servidor_id],
     );
@@ -185,19 +185,32 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
       [solicitud.permiso_tipo_id],
     );
 
+    const unidadPermisoR = await pool.query(
+      `SELECT nombre FROM core.unidad_organica WHERE id = $1`,
+      [solicitud.unidad_organica_id],
+    );
+
+    const horarioPermiso = `${solicitud.hora_salida} - ${solicitud.hora_regreso}`;
+
     if (svEmailR.rows[0]?.email) {
       if (estado === "APROBADO") {
         await enviarCorreo(svEmailR.rows[0].email, "permisoAprobado", {
           servidor_nombre: svEmailR.rows[0].nombres,
+          cedula: svEmailR.rows[0].numero_identificacion || "",
           tipo: tipoPermisoR.rows[0]?.nombre || "",
           fecha: solicitud.fecha,
+          horario: horarioPermiso,
           horas: `${solicitud.horas_solicitadas}h`,
+          aprobado_por: firmante_nombre || "",
         });
       } else {
         await enviarCorreo(svEmailR.rows[0].email, "solicitudNegada", {
           servidor_nombre: svEmailR.rows[0].nombres,
           tipo: tipoPermisoR.rows[0]?.nombre || "Permiso",
+          unidad: unidadPermisoR.rows[0]?.nombre || "",
+          periodo: `${solicitud.fecha} · ${horarioPermiso}`,
           observacion: observacion || "",
+          negado_por: firmante_nombre || "",
         });
       }
     }

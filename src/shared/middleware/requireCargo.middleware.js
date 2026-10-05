@@ -25,9 +25,19 @@ export function requireCargo(cargosPermitidos = []) {
 
       const cargoId = rows[0].cargo_id;
 
-      const autorizado = cargosPermitidos.some((cargoPermitido) =>
-        cargoPuedeActuarComo(cargoId, cargoPermitido),
-      );
+      // El Administrador del Sistema pasa cualquier requireCargo, sin
+      // importar la lista de cargos permitidos que reciba cada ruta —
+      // misma fuente de verdad (ADMIN_CARGO_ID) que usa el login para
+      // decidir es_admin, así no hay que mantener la lista de cargos
+      // permitidos de cada endpoint actualizada a mano para incluirlo.
+      const adminCargoId = (process.env.ADMIN_CARGO_ID || "").trim();
+      const esAdmin = adminCargoId !== "" && cargoId === adminCargoId;
+
+      const autorizado =
+        esAdmin ||
+        cargosPermitidos.some((cargoPermitido) =>
+          cargoPuedeActuarComo(cargoId, cargoPermitido),
+        );
 
       if (!autorizado) {
         return res.status(403).json({

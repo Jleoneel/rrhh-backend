@@ -157,7 +157,7 @@ router.post(
       }
 
       const unidadR = await client.query(
-        `SELECT jefe_id FROM core.unidad_organica WHERE id = $1`,
+        `SELECT jefe_id, nombre FROM core.unidad_organica WHERE id = $1`,
         [unidad_organica_id],
       );
 
@@ -216,7 +216,7 @@ router.post(
         );
 
         const svR = await pool.query(
-          `SELECT sv.nombres FROM core.servidor sv WHERE sv.id = $1`,
+          `SELECT sv.nombres, sv.numero_identificacion FROM core.servidor sv WHERE sv.id = $1`,
           [servidor_id],
         );
 
@@ -229,9 +229,13 @@ router.post(
           await enviarCorreo(jefeR.rows[0].email, "nuevaSolicitudPermiso", {
             jefe_nombre: jefeR.rows[0].nombre,
             servidor_nombre: svR.rows[0]?.nombres || "",
+            cedula: svR.rows[0]?.numero_identificacion || "",
+            unidad: unidadR.rows[0]?.nombre || "",
             fecha: fecha,
             tipo: tipoR.rows[0]?.nombre || "",
+            horario: `${hora_salida} - ${hora_regreso}`,
             horas: `${horas_solicitadas}h`,
+            motivo: motivo || "",
           });
         }
       }

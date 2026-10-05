@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../../../db.js";
 import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
+import { enviarCorreo } from "../../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -170,7 +171,7 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
 router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, res) => {
   const { id } = req.params;
   const { aprobado, observacion } = req.body;
-  const { firmante_id } = req.user;
+  const { firmante_id, nombre: firmante_nombre } = req.user;
 
   if (aprobado) {
     return res.status(400).json({
@@ -226,15 +227,55 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
 
     const firmanteVinculado = firmanteVinculadoR.rows[0]?.firmante_id || null;
 
+    // Notificación persistente (igual que el camino APROBADO en
+    // vac-firmas.routes.js) — antes solo se emitía el push SSE, que se
+    // pierde si el servidor no está conectado en ese instante: quedaba sin
+    // registro alguno de que su solicitud fue negada.
     if (firmanteVinculado) {
+      await pool.query(
+        `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, firmante_id, tipo) VALUES ($1, $2, 'NEGADO')`,
+        [id, firmanteVinculado],
+      );
       notifyCargoId(`permiso-firmante-${firmanteVinculado}`, {
         tipo: "NEGADO",
+        vacacion_id: id,
         mensaje: "Tu solicitud de vacaciones fue negada",
+        es_vacacion: true,
       });
     } else {
+      await pool.query(
+        `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, servidor_id, tipo) VALUES ($1, $2, 'NEGADO')`,
+        [id, solicitud.servidor_id],
+      );
       notifyCargoId(`permiso-servidor-${solicitud.servidor_id}`, {
         tipo: "NEGADO",
+        vacacion_id: id,
         mensaje: "Tu solicitud de vacaciones fue negada",
+        es_vacacion: true,
+      });
+    }
+
+    // ← Correo al servidor (antes este camino no enviaba ninguno)
+    const svEmailR = await pool.query(
+      `
+    SELECT sv.nombres, sv.email, sv.numero_identificacion, u.nombre AS unidad_organica
+    FROM core.servidor sv
+    LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+    LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+    LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+    WHERE sv.id = $1
+  `,
+      [solicitud.servidor_id],
+    );
+
+    if (svEmailR.rows[0]?.email) {
+      await enviarCorreo(svEmailR.rows[0].email, "solicitudNegada", {
+        servidor_nombre: svEmailR.rows[0].nombres,
+        tipo: solicitud.tipo === "VACACION_PROGRAMADA" ? "Vacación Programada" : "Permiso con Cargo",
+        unidad: svEmailR.rows[0]?.unidad_organica || "",
+        periodo: `${solicitud.fecha_inicio} → ${solicitud.fecha_fin}`,
+        observacion: observacion || "",
+        negado_por: firmante_nombre || "",
       });
     }
 

@@ -190,7 +190,12 @@ router.post(
 
       const svR = await pool.query(
         `
-  SELECT sv.nombres FROM core.servidor sv WHERE sv.id = $1
+  SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
+  FROM core.servidor sv
+  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+  WHERE sv.id = $1
 `,
         [solicitud.servidor_id],
       );
@@ -199,6 +204,8 @@ router.post(
         await enviarCorreo(notificarR.rows[0].email, "nuevaSolicitudVacacion", {
           jefe_nombre: notificarR.rows[0].nombre,
           servidor_nombre: svR.rows[0]?.nombres || "",
+          cedula: svR.rows[0]?.numero_identificacion || "",
+          unidad: svR.rows[0]?.unidad_organica || "",
           fecha_inicio: solicitud.fecha_inicio,
           fecha_fin: solicitud.fecha_fin,
           dias: solicitud.dias_solicitados,
@@ -345,7 +352,12 @@ router.post(
 
       const svR2 = await pool.query(
         `
-  SELECT sv.nombres FROM core.servidor sv WHERE sv.id = $1
+  SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
+  FROM core.servidor sv
+  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+  WHERE sv.id = $1
 `,
         [solicitud.servidor_id],
       );
@@ -354,6 +366,8 @@ router.post(
         await enviarCorreo(uathEmailR.rows[0].email, "nuevaSolicitudVacacion", {
           jefe_nombre: uathEmailR.rows[0].nombre,
           servidor_nombre: svR2.rows[0]?.nombres || "",
+          cedula: svR2.rows[0]?.numero_identificacion || "",
+          unidad: svR2.rows[0]?.unidad_organica || "",
           fecha_inicio: solicitud.fecha_inicio,
           fecha_fin: solicitud.fecha_fin,
           dias: solicitud.dias_solicitados,
@@ -496,6 +510,7 @@ router.post(
           fecha_inicio: solicitud.fecha_inicio,
           fecha_fin: solicitud.fecha_fin,
           dias: solicitud.dias_solicitados,
+          aprobado_por: solicitud.uath_nombre || "",
         });
       }
 
