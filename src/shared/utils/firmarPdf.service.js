@@ -51,6 +51,15 @@ function agregarPlaceholderFirma({
   signatureLength,
   widgetRect,
   pageNumber = 0,
+  // Cada firma debe tener un nombre de campo DISTINTO. Con el mismo nombre
+  // en las N firmas de un documento (ej. "Signature1" siempre, como venía
+  // antes), pdfsig las valida igual porque enumera objetos /Sig
+  // directamente — pero un validador que arma su lista recorriendo
+  // /AcroForm/Fields y usa el nombre como clave (como Firma EC) trata todas
+  // las entradas con igual T como EL MISMO campo actualizado N veces, y
+  // solo muestra la última. Confirmado inspeccionando el PDF: con el mismo
+  // nombre, pdfsig veía 6 firmas válidas pero Firma EC solo mostraba 1.
+  fieldName = "Signature1",
 }) {
   const doc = pdfDoc;
   const page = doc.getPages()[pageNumber];
@@ -97,7 +106,7 @@ function agregarPlaceholderFirma({
     FT: "Sig",
     Rect: rect,
     V: signatureDictRef,
-    T: PDFString.of("Signature1"),
+    T: PDFString.of(fieldName),
     F: ANNOTATION_FLAGS.PRINT,
     P: page.ref,
     AP: { N: doc.context.register(apStream) },
@@ -316,6 +325,7 @@ export const firmarPdfConP12 = async ({
       signatureLength,
       widgetRect: [pos.x, pos.y, pos.x + pos.width, pos.y + pos.height],
       pageNumber: 0,
+      fieldName: `Firma_${posicion}`,
     });
 
     const pdfWithPlaceholderBuffer = Buffer.from(
@@ -431,6 +441,7 @@ export const firmarPdfAccionConP12 = async ({
       signatureLength,
       widgetRect: [pos.x, pos.y, pos.x + pos.width, pos.y + pos.height],
       pageNumber: pos.page,
+      fieldName: `Firma_${posicion}`,
     });
 
     const pdfBuffer = Buffer.from(await pdfDoc.save({ addDefaultPage: false }));
