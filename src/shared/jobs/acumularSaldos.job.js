@@ -16,13 +16,10 @@ export function iniciarCronAcumularSaldos() {
       await client.query("BEGIN");
 
       // Buscar servidores cuyo día de ingreso coincide con hoy. El
-      // incremento mensual ya NO es fijo: sale de
-      // unidad_organica.dias_vacacion_anual de su puesto ACTIVO (días/año
-      // × 8h ÷ 12 meses) — una unidad sin configurar explícitamente usa el
-      // default de esa columna (30 días/año = 20h/mes, el valor fijo que
-      // tenía todo el mundo antes de este cambio). Si el servidor no tiene
-      // asignación activa (no debería pasar, pero por seguridad), cae al
-      // mismo default de 30 vía COALESCE.
+      // incremento mensual ya NO es fijo: sale de servidor.dias_vacacion_anual
+      // (ej. un auxiliar de enfermería que acumula más que el resto del
+      // personal) → 30 por defecto si no está configurado (días/año × 8h ÷
+      // 12 meses).
       const { rows } = await client.query(
         `SELECT
     sp.id,
@@ -30,12 +27,9 @@ export function iniciarCronAcumularSaldos() {
     sp.horas_totales,
     sp.horas_usadas,
     sv.fecha_ingreso,
-    COALESCE(u.dias_vacacion_anual, 30) AS dias_vacacion_anual
+    COALESCE(sv.dias_vacacion_anual, 30) AS dias_vacacion_anual
   FROM core.saldo_permiso sp
   JOIN core.servidor sv ON sv.id = sp.servidor_id
-  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
-  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
-  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
   WHERE
     sv.fecha_ingreso IS NOT NULL
     AND EXTRACT(DAY FROM sv.fecha_ingreso) = $1

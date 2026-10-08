@@ -103,7 +103,7 @@ export async function loginByCedula(req, res) {
     const qServidor = `
       SELECT
         us.id, us.password_hash, us.activo,
-        sv.id AS servidor_id,
+        sv.id AS servidor_id, sv.activo AS servidor_activo,
         sv.nombres, sv.numero_identificacion,
         u.id AS unidad_organica_id,
         u.nombre AS unidad_organica,
@@ -128,6 +128,12 @@ export async function loginByCedula(req, res) {
 
     if (!servidor.activo) {
       return res.status(403).json({ message: "Usuario inactivo" });
+    }
+
+    if (!servidor.servidor_activo) {
+      return res.status(403).json({
+        message: "Este servidor fue dado de baja del sistema",
+      });
     }
 
     const hash = servidor.password_hash?.trim();

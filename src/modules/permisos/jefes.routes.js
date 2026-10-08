@@ -19,7 +19,6 @@ router.get("/jefes", requireAuth, requireFirmante, async (req, res) => {
     const { rows } = await pool.query(`
       SELECT
         u.id, u.nombre AS unidad_organica, u.origen, u.activo,
-        u.dias_vacacion_anual,
         u.unidad_padre_id, up.nombre AS unidad_padre_nombre,
         f1.id AS jefe_id, f1.nombre AS jefe_nombre,
         f2.id AS jefe_superior_id, f2.nombre AS jefe_superior_nombre
@@ -272,6 +271,7 @@ router.get(
         SELECT
           sv.id AS servidor_id, sv.nombres,
           sv.numero_identificacion AS cedula,
+          sv.dias_vacacion_anual,
           d.nombre AS denominacion_puesto,
           p.origen AS puesto_origen
         FROM core.asignacion_puesto ap
@@ -329,38 +329,49 @@ router.patch(
   },
 );
 
-// PATCH /api/permisos/unidades-organicas/:id/dias-vacacion
-// Días de vacación que acumulan anualmente los servidores de esta unidad
-// (el cron de acumularSaldos.job.js los usa para calcular el incremento
-// mensual en vez del valor fijo de 20h — ver ese archivo). El cambio solo
-// aplica hacia adelante: no recalcula lo ya acumulado este año.
+// PATCH /api/permisos/servidores/:servidorId/dias-vacacion
+// Días de vacación anuales que acumula este servidor en particular (ej.
+// un auxiliar de enfermería que acumula más que el resto del personal) —
+// lo usa acumularSaldos.job.js para calcular el incremento mensual.
+// dias_vacacion_anual=null revierte al default del sistema (30). El
+// cambio solo aplica hacia adelante: no recalcula lo ya acumulado este año.
 router.patch(
-  "/unidades-organicas/:id/dias-vacacion",
+  "/servidores/:servidorId/dias-vacacion",
   requireAuth,
   requireCargo([CARGO_IDS.ASISTENTE_UATH]),
   async (req, res) => {
-    const { id } = req.params;
-    const dias = Number(req.body?.dias_vacacion_anual);
-    if (!Number.isInteger(dias) || dias <= 0 || dias > 365) {
-      return res.status(400).json({
-        message: "Los días de vacación anuales deben ser un entero entre 1 y 365",
-      });
+    const { servidorId } = req.params;
+    const diasRaw = req.body?.dias_vacacion_anual;
+
+    let dias = null;
+    if (diasRaw !== null && diasRaw !== undefined && diasRaw !== "") {
+      dias = Number(diasRaw);
+      if (!Number.isInteger(dias) || dias <= 0 || dias > 365) {
+        return res.status(400).json({
+          message:
+            "Los días de vacación anuales deben ser un entero entre 1 y 365",
+        });
+      }
     }
+
     try {
       const { rows } = await pool.query(
-        `UPDATE core.unidad_organica SET dias_vacacion_anual = $1 WHERE id = $2 RETURNING id, dias_vacacion_anual`,
-        [dias, id],
+        `UPDATE core.servidor SET dias_vacacion_anual = $1 WHERE id = $2 RETURNING id, dias_vacacion_anual`,
+        [dias, servidorId],
       );
       if (!rows.length) {
-        return res.status(404).json({ message: "Unidad no encontrada" });
+        return res.status(404).json({ message: "Servidor no encontrado" });
       }
       return res.json({
-        message: "Días de vacación actualizados",
+        message:
+          dias === null
+            ? "Se quitó la personalización — ahora usa el valor por defecto (30)"
+            : "Días de vacación actualizados",
         ...rows[0],
       });
     } catch (err) {
       return res.status(500).json({
-        message: "Error actualizando los días de vacación",
+        message: "Error actualizando los días de vacación del servidor",
         error: err.message,
       });
     }

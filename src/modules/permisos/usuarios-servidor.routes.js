@@ -14,7 +14,13 @@ router.get(
   requireAuth,
   requireFirmante,
   async (req, res) => {
-    const { page = 1, limit = 10, search = "", filtro = "todos" } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      filtro = "todos",
+      todas = "false",
+    } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     try {
@@ -22,6 +28,10 @@ router.get(
       let whereClause = `WHERE 1=1`;
       const values = [];
       let i = 1;
+
+      if (todas !== "true") {
+        whereClause += ` AND sv.activo = true`;
+      }
 
       if (search) {
         whereClause += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
@@ -60,10 +70,11 @@ router.get(
         sv.nombres,
         sv.numero_identificacion AS cedula,
         sv.origen,
+        sv.activo,
         u.nombre AS unidad_organica,
         d.nombre AS denominacion_puesto,
         us.id AS usuario_id,
-        us.activo,
+        us.activo AS usuario_activo,
         sv.email,
         TO_CHAR(sv.fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso
       FROM core.servidor sv

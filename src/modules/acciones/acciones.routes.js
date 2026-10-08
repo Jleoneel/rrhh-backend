@@ -224,6 +224,7 @@ router.post(
       const baseQ = `
           SELECT
             sv.id AS servidor_id,
+            sv.activo AS servidor_activo,
             ap.id AS asignacion_puesto_id,
             p.id AS puesto_activo_id
           FROM core.servidor sv
@@ -242,6 +243,13 @@ router.post(
         return res
           .status(404)
           .json({ message: "Servidor no encontrado o sin asignación activa" });
+      }
+      if (!base.rows[0].servidor_activo) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          message:
+            "Este servidor fue dado de baja — no se pueden crear Acciones de Personal para él",
+        });
       }
       const { servidor_id, puesto_activo_id } = base.rows[0];
       const puesto_id = puestoId || puesto_activo_id;
@@ -358,7 +366,8 @@ router.post(
 // GET /api/acciones
 // Lista + filtros
 router.get("/", requireAuth, async (req, res) => {
-  const { estado, tipo_accion, desde, hasta, cedula, fecha } = req.query;
+  const { estado, tipo_accion, desde, hasta, cedula, fecha, busqueda } =
+    req.query;
 
   try {
     let sql = `
@@ -393,6 +402,14 @@ router.get("/", requireAuth, async (req, res) => {
     if (cedula) {
       sql += ` AND s.numero_identificacion = $${i++}`;
       values.push(cedula);
+    }
+
+    // Búsqueda combinada por cédula o apellidos/nombres desde la barra de
+    // filtros de "Acciones de Personal" (reemplaza al filtro de fecha).
+    if (busqueda) {
+      sql += ` AND (s.numero_identificacion ILIKE $${i} OR s.nombres ILIKE $${i})`;
+      values.push(`%${busqueda.trim()}%`);
+      i++;
     }
 
     if (desde) {

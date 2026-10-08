@@ -607,4 +607,45 @@ router.patch(
   resetPasswordServidor,
 );
 
+// PATCH /api/servidores/:id/activo
+// Da de baja (o reactiva) a un servidor — independiente de
+// estado_servidor (viene del distributivo oficial) y de
+// usuario_servidor.activo (solo aplica a quien tiene cuenta creada). Un
+// servidor inactivo no puede iniciar sesión (ver auth.controller.js) ni
+// se le pueden crear nuevas Acciones de Personal (ver POST /api/acciones).
+router.patch(
+  "/:id/activo",
+  requireAuth,
+  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  async (req, res) => {
+    const { id } = req.params;
+    const { activo } = req.body;
+
+    if (typeof activo !== "boolean") {
+      return res.status(400).json({ message: "El campo activo debe ser booleano" });
+    }
+
+    try {
+      const { rows } = await pool.query(
+        `UPDATE core.servidor SET activo = $1 WHERE id = $2 RETURNING id, activo`,
+        [activo, id],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "Servidor no encontrado" });
+      }
+      return res.json({
+        message: activo
+          ? "Servidor reactivado"
+          : "Servidor dado de baja — ya no podrá iniciar sesión ni tener nuevas Acciones de Personal",
+        ...rows[0],
+      });
+    } catch (err) {
+      return res.status(500).json({
+        message: "Error actualizando el estado del servidor",
+        error: err.message,
+      });
+    }
+  },
+);
+
 export default router;
