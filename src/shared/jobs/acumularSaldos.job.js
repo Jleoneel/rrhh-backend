@@ -15,17 +15,28 @@ export function iniciarCronAcumularSaldos() {
     try {
       await client.query("BEGIN");
 
-      // Buscar servidores cuyo día de ingreso coincide con hoy
+      // Buscar servidores cuyo día de ingreso coincide con hoy. El
+      // incremento mensual ya NO es fijo: sale de
+      // unidad_organica.dias_vacacion_anual de su puesto ACTIVO (días/año
+      // × 8h ÷ 12 meses) — una unidad sin configurar explícitamente usa el
+      // default de esa columna (30 días/año = 20h/mes, el valor fijo que
+      // tenía todo el mundo antes de este cambio). Si el servidor no tiene
+      // asignación activa (no debería pasar, pero por seguridad), cae al
+      // mismo default de 30 vía COALESCE.
       const { rows } = await client.query(
-        `SELECT 
+        `SELECT
     sp.id,
     sp.servidor_id,
     sp.horas_totales,
     sp.horas_usadas,
-    sv.fecha_ingreso
+    sv.fecha_ingreso,
+    COALESCE(u.dias_vacacion_anual, 30) AS dias_vacacion_anual
   FROM core.saldo_permiso sp
   JOIN core.servidor sv ON sv.id = sp.servidor_id
-  WHERE 
+  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+  WHERE
     sv.fecha_ingreso IS NOT NULL
     AND EXTRACT(DAY FROM sv.fecha_ingreso) = $1
     AND sv.estado_servidor IN ('ACTIVO', 'NOMBRAMIENTO PROVISIONAL')
@@ -39,10 +50,12 @@ export function iniciarCronAcumularSaldos() {
         const horasTotales = parseFloat(saldo.horas_totales);
         const horasUsadas = parseFloat(saldo.horas_usadas);
         const disponibles = horasTotales - horasUsadas;
+        const incrementoMensual =
+          Math.round(((saldo.dias_vacacion_anual * 8) / 12) * 100) / 100;
         const nuevasHoras =
-          disponibles + 20 > 480
+          disponibles + incrementoMensual > 480
             ? horasTotales + (480 - disponibles)
-            : horasTotales + 20;
+            : horasTotales + incrementoMensual;
 
         await client.query(
           `
@@ -57,10 +70,11 @@ export function iniciarCronAcumularSaldos() {
           `
           INSERT INTO core.permiso_movimiento
             (servidor_id, horas, tipo, descripcion)
-          VALUES ($1, 20, 'AJUSTE', $2)
+          VALUES ($1, $2, 'AJUSTE', $3)
         `,
           [
             saldo.servidor_id,
+            incrementoMensual,
             `Acumulación mensual - ${diaHoy}/${mesHoy}/${anioHoy}`,
           ],
         );

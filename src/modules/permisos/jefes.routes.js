@@ -11,11 +11,15 @@ import { CARGO_IDS } from "../../shared/constants/cargos.js";
 const router = Router();
 
 // GET /api/permisos/jefes
+// Por defecto solo unidades activas — ?todas=true trae también las
+// desactivadas (para el toggle "Activas / Todas" de la pantalla).
 router.get("/jefes", requireAuth, requireFirmante, async (req, res) => {
+  const incluirInactivas = req.query.todas === "true";
   try {
     const { rows } = await pool.query(`
       SELECT
-        u.id, u.nombre AS unidad_organica, u.origen,
+        u.id, u.nombre AS unidad_organica, u.origen, u.activo,
+        u.dias_vacacion_anual,
         u.unidad_padre_id, up.nombre AS unidad_padre_nombre,
         f1.id AS jefe_id, f1.nombre AS jefe_nombre,
         f2.id AS jefe_superior_id, f2.nombre AS jefe_superior_nombre
@@ -23,6 +27,7 @@ router.get("/jefes", requireAuth, requireFirmante, async (req, res) => {
       LEFT JOIN core.unidad_organica up ON up.id = u.unidad_padre_id
       LEFT JOIN core.firmante f1 ON f1.id = u.jefe_id
       LEFT JOIN core.firmante f2 ON f2.id = u.jefe_superior_id
+      ${incluirInactivas ? "" : "WHERE u.activo = true"}
       ORDER BY u.nombre ASC;
     `);
     return res.json(rows);
@@ -245,6 +250,119 @@ router.post(
         .json({ message: "Error trasladando al servidor", error: err.message });
     } finally {
       client.release();
+    }
+  },
+);
+
+// GET /api/permisos/unidades-organicas/:id/servidores
+// Servidores con asignación ACTIVA en esta unidad — alimenta la pestaña
+// "Servidores actuales" del modal de asignación, para que UATH vea quién ya
+// pertenece antes de trasladar a alguien más (de solo lectura, por eso
+// requireFirmante en vez del requireCargo más estricto de las rutas que
+// modifican datos).
+router.get(
+  "/unidades-organicas/:id/servidores",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const { id } = req.params;
+    try {
+      const { rows } = await pool.query(
+        `
+        SELECT
+          sv.id AS servidor_id, sv.nombres,
+          sv.numero_identificacion AS cedula,
+          d.nombre AS denominacion_puesto,
+          p.origen AS puesto_origen
+        FROM core.asignacion_puesto ap
+        JOIN core.puesto p ON p.id = ap.puesto_id
+        JOIN core.servidor sv ON sv.id = ap.servidor_id
+        LEFT JOIN core.denominacion_puesto d ON d.id = p.denominacion_puesto_id
+        WHERE p.unidad_organica_id = $1 AND ap.estado = 'ACTIVA'
+        ORDER BY sv.nombres ASC;
+        `,
+        [id],
+      );
+      return res.json(rows);
+    } catch (err) {
+      return res.status(500).json({
+        message: "Error obteniendo servidores de la unidad",
+        error: err.message,
+      });
+    }
+  },
+);
+
+// PATCH /api/permisos/unidades-organicas/:id/activo
+// Activa/desactiva una unidad orgánica — es solo un toggle de visibilidad
+// (deja de listarse por defecto en "Gestión de Jefes"), no cierra
+// asignaciones de servidores ni afecta jefes ya asignados.
+router.patch(
+  "/unidades-organicas/:id/activo",
+  requireAuth,
+  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  async (req, res) => {
+    const { id } = req.params;
+    const { activo } = req.body;
+    if (typeof activo !== "boolean") {
+      return res
+        .status(400)
+        .json({ message: "El campo 'activo' debe ser booleano" });
+    }
+    try {
+      const { rows } = await pool.query(
+        `UPDATE core.unidad_organica SET activo = $1 WHERE id = $2 RETURNING id, activo`,
+        [activo, id],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "Unidad no encontrada" });
+      }
+      return res.json({
+        message: activo ? "Unidad activada" : "Unidad desactivada",
+        ...rows[0],
+      });
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ message: "Error actualizando la unidad", error: err.message });
+    }
+  },
+);
+
+// PATCH /api/permisos/unidades-organicas/:id/dias-vacacion
+// Días de vacación que acumulan anualmente los servidores de esta unidad
+// (el cron de acumularSaldos.job.js los usa para calcular el incremento
+// mensual en vez del valor fijo de 20h — ver ese archivo). El cambio solo
+// aplica hacia adelante: no recalcula lo ya acumulado este año.
+router.patch(
+  "/unidades-organicas/:id/dias-vacacion",
+  requireAuth,
+  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  async (req, res) => {
+    const { id } = req.params;
+    const dias = Number(req.body?.dias_vacacion_anual);
+    if (!Number.isInteger(dias) || dias <= 0 || dias > 365) {
+      return res.status(400).json({
+        message: "Los días de vacación anuales deben ser un entero entre 1 y 365",
+      });
+    }
+    try {
+      const { rows } = await pool.query(
+        `UPDATE core.unidad_organica SET dias_vacacion_anual = $1 WHERE id = $2 RETURNING id, dias_vacacion_anual`,
+        [dias, id],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "Unidad no encontrada" });
+      }
+      return res.json({
+        message: "Días de vacación actualizados",
+        ...rows[0],
+      });
+    } catch (err) {
+      return res.status(500).json({
+        message: "Error actualizando los días de vacación",
+        error: err.message,
+      });
     }
   },
 );
