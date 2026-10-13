@@ -11,6 +11,8 @@ import path from "path";
 // desactualizado aunque .env esté correcto.
 dotenv.config({ override: true });
 
+import { requireAuth } from "./shared/middleware/auth.middleware.js";
+import { requireAccesoUploads } from "./shared/middleware/requireAccesoUploads.middleware.js";
 import accionesRoutes from "./modules/acciones/acciones.routes.js";
 import servidoresRoutes from "./modules/servidores/servidores.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
@@ -71,8 +73,17 @@ app.use(express.json());
 const uploadsDir = path.resolve(process.env.UPLOADS_DIR || "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// Exponer archivos estáticos
-app.use("/uploads", express.static(uploadsDir));
+// Exponer archivos estáticos — PROTEGIDO en dos capas: antes era público
+// (cualquiera podía descargar PDFs de Acciones de Personal, anexos y
+// certificados P12 sin login, solo adivinando la ruta — codigo_elaboracion
+// es secuencial). requireAuth acepta el token por header Authorization o
+// por ?token=, porque los <a>/window.open que abren estas rutas no pueden
+// mandar headers — ver AccionesRecepcionServidor.jsx y VerAccionModal.jsx,
+// que agregan ?token= al construir la URL. requireAccesoUploads además
+// limita /uploads/acciones/* a UATH/jefes o al servidor dueño de esa
+// Acción — sin esto, cualquier empleado logueado podía ver documentos de
+// cualquier otro.
+app.use("/uploads", requireAuth, requireAccesoUploads, express.static(uploadsDir));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 

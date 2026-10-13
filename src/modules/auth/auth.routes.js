@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { loginByCedula, cambiarPassword } from "./auth.controller.js";
 import { requireAuth, requireFirmante } from "../../shared/middleware/auth.middleware.js";
+import {
+  loginLimitPorCedula,
+  loginLimitPorIp,
+} from "../../shared/middleware/loginRateLimit.middleware.js";
 import bcrypt from "bcrypt";
 import { pool } from "../../db.js";
 
 const router = Router();
 
-router.post("/login", loginByCedula);
+router.post("/login", loginLimitPorIp, loginLimitPorCedula, loginByCedula);
 
 router.put("/cambiar-password", requireAuth, cambiarPassword);
 // POST /api/auth/crear-cuentas-masivo

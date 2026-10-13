@@ -932,8 +932,51 @@ router.put("/:id/propuesta", requireAuth, async (req, res) => {
   return res.json(rows[0]);
 });
 
+// Ver/descargar anexos: el Administrador del Sistema siempre pasa, personal
+// UATH/jefes (FIRMANTE) también, o el servidor dueño de esa Acción de
+// Personal — antes solo exigía estar logueado (requireAuth a secas), así
+// que cualquier empleado con usuario podía ver documentos ajenos. El
+// chequeo de es_admin va explícito y primero (no basta con que hoy el
+// admin también sea FIRMANTE: si esa relación cambia, este bypass no debe
+// depender de ella). Subir/eliminar ya estaban bien: requireCargo(
+// ASISTENTE_UATH) ya deja pasar admin igual de explícito.
+async function requireAccesoAccion(req, res, next) {
+  if (req.user?.es_admin === true) return next();
+  if (req.user?.tipo_usuario === "FIRMANTE") return next();
+
+  const { accionId } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT servidor_id FROM core.accion_personal WHERE id = $1`,
+      [accionId],
+    );
+    if (!rows.length) {
+      return res.status(404).json({ message: "Acción no encontrada" });
+    }
+    if (
+      req.user?.tipo_usuario === "SERVIDOR" &&
+      req.user.servidor_id === rows[0].servidor_id
+    ) {
+      return next();
+    }
+    return res.status(403).json({
+      message: "No autorizado para ver los documentos de esta acción",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Error validando acceso a la acción",
+      error: err.message,
+    });
+  }
+}
+
 // Rutas para anexos
-router.get("/:accionId/anexos", requireAuth, anexosCtrl.listar);
+router.get(
+  "/:accionId/anexos",
+  requireAuth,
+  requireAccesoAccion,
+  anexosCtrl.listar,
+);
 
 // POST /api/acciones/:accionId/anexos  (subir nuevo anexo)
 router.post(
@@ -945,7 +988,12 @@ router.post(
 );
 
 // GET /api/acciones/:accionId/anexos/:anexoId/descargar
-router.get("/:accionId/anexos/:anexoId/descargar", anexosCtrl.descargar);
+router.get(
+  "/:accionId/anexos/:anexoId/descargar",
+  requireAuth,
+  requireAccesoAccion,
+  anexosCtrl.descargar,
+);
 
 // DELETE /api/acciones/:accionId/anexos/:anexoId
 router.delete(
