@@ -2,6 +2,9 @@ import express from "express";
 import multer from "multer";
 import XLSX from "xlsx";
 import { pool } from "../../db.js";
+import { requireAuth } from "../../shared/middleware/auth.middleware.js";
+import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
+import { CARGO_IDS } from "../../shared/constants/cargos.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -10,8 +13,18 @@ function s(v) {
   return String(v ?? "").trim();
 }
 
-// Endpoint para importar el Excel del distributivo
-router.post("/import", upload.single("file"), async (req, res) => {
+// Endpoint para importar el Excel del distributivo — trunca
+// staging.stg_puestos_excel_raw y resincroniza TODO servidor/puesto/unidad
+// orgánica vía core.sync_distributivo(). No tenía NINGÚN middleware de
+// auth: cualquiera, sin login, podía mandar un archivo cualquiera y
+// corromper el roster completo del hospital. Mismo nivel que otras
+// operaciones destructivas de UATH (crear/dar de baja servidor).
+router.post(
+  "/import",
+  requireAuth,
+  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  upload.single("file"),
+  async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, message: "Falta el archivo .xlsx" });
 
   const client = await pool.connect();
