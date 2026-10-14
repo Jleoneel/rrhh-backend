@@ -6,9 +6,17 @@ import {
   requireAuth,
   requireFirmante,
 } from "../../shared/middleware/auth.middleware.js";
+import { conManejoErrorMulter } from "../../shared/middleware/manejarErrorMulter.middleware.js";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+// memoryStorage carga el archivo entero en RAM antes de validar nada —
+// sin límite, cualquier firmante (requireFirmante) podía tumbar el
+// proceso mandando un archivo gigante. 10MB es generoso para un Excel
+// de texto plano de ~1000 filas.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const excelFechaADate = (numeroExcel) => {
   if (!numeroExcel) return null;
@@ -21,7 +29,7 @@ router.post(
   "/import-posicional",
   requireAuth,
   requireFirmante,
-  upload.single("file"),
+  conManejoErrorMulter(upload.single("file")),
   async (req, res) => {
     if (!req.file) return res.status(400).json({ message: "Falta el archivo" });
 

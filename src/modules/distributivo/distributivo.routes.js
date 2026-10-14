@@ -5,9 +5,17 @@ import { pool } from "../../db.js";
 import { requireAuth } from "../../shared/middleware/auth.middleware.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
 import { CARGO_IDS } from "../../shared/constants/cargos.js";
+import { conManejoErrorMulter } from "../../shared/middleware/manejarErrorMulter.middleware.js";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+// memoryStorage carga el archivo entero en RAM antes de validar nada —
+// sin límite, alguien con acceso a esta ruta (ya restringida a
+// ASISTENTE_UATH) podía tumbar el proceso mandando un archivo gigante.
+// 10MB es generoso para un Excel de texto plano de ~1000 filas.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 function s(v) {
   return String(v ?? "").trim();
@@ -23,7 +31,7 @@ router.post(
   "/import",
   requireAuth,
   requireCargo([CARGO_IDS.ASISTENTE_UATH]),
-  upload.single("file"),
+  conManejoErrorMulter(upload.single("file")),
   async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, message: "Falta el archivo .xlsx" });
 
