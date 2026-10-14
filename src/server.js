@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -31,6 +32,13 @@ import distributivoposicionalRoutes from "./modules/distributivo/distributivo-po
 import "./shared/jobs/purgarFirmasIntermedias.job.js";
 
 const app = express();
+
+// Cabeceras de seguridad HTTP (X-Content-Type-Options, HSTS, X-Frame-Options,
+// etc). Este backend es solo API JSON + archivos estáticos protegidos
+// (/uploads), sin páginas HTML propias, así que el CSP por defecto de
+// helmet no tiene nada que romper acá — el frontend vive en otro origen
+// (Vite) y ya se protege con su propio build.
+app.use(helmet());
 // Este backend es de uso exclusivamente interno (red del hospital, sin
 // exposición a internet), así que en vez de mantener una lista de IPs
 // exactas que hay que tocar cada vez que se conecta una máquina nueva,
