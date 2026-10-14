@@ -118,7 +118,8 @@ router.get("/reporte", requireAuth, requireFirmante, async (req, res) => {
       totalPages: Math.max(1, Math.ceil(total / parseInt(limit))),
     });
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo reporte", error: err.message });
+    console.error("Error obteniendo reporte:", err);
+    return res.status(500).json({ message: "Error obteniendo reporte" });
   }
 });
 

@@ -69,7 +69,8 @@ router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en notificaciones-permiso:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -90,7 +91,8 @@ router.get("/servidor", requireAuth, requireServidor, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en notificaciones-permiso:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -104,7 +106,8 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en notificaciones-permiso:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -121,7 +124,8 @@ router.patch(
       );
       return res.json({ ok: true });
     } catch (err) {
-      return res.status(500).json({ message: "Error", error: err.message });
+      console.error("Error en notificaciones-permiso:", err);
+      return res.status(500).json({ message: "Error" });
     }
   },
 );
@@ -139,7 +143,8 @@ router.patch(
       );
       return res.json({ ok: true });
     } catch (err) {
-      return res.status(500).json({ message: "Error", error: err.message });
+      console.error("Error en notificaciones-permiso:", err);
+      return res.status(500).json({ message: "Error" });
     }
   },
 );
@@ -173,7 +178,8 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
-      return res.status(500).json({ message: "Error", error: err.message });
+      console.error("Error en notificaciones-permiso:", err);
+      return res.status(500).json({ message: "Error" });
     }
   },
 );
@@ -205,7 +211,8 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
-      return res.status(500).json({ message: "Error", error: err.message });
+      console.error("Error en notificaciones-permiso:", err);
+      return res.status(500).json({ message: "Error" });
     }
   },
 );

@@ -31,9 +31,10 @@ router.get("/jefes", requireAuth, requireFirmante, async (req, res) => {
     `);
     return res.json(rows);
   } catch (err) {
+    console.error("Error obteniendo jefes:", err);
     return res
       .status(500)
-      .json({ message: "Error obteniendo jefes", error: err.message });
+      .json({ message: "Error obteniendo jefes" });
   }
 });
 
@@ -122,9 +123,10 @@ router.post(
 
       return res.status(201).json(rows[0]);
     } catch (err) {
+      console.error("Error creando la unidad orgánica:", err);
       return res
         .status(500)
-        .json({ message: "Error creando la unidad orgánica", error: err.message });
+        .json({ message: "Error creando la unidad orgánica" });
     }
   },
 );
@@ -243,10 +245,11 @@ router.post(
         puesto_id: puestoNuevoR.rows[0].id,
       });
     } catch (err) {
+      console.error("Error trasladando al servidor:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error trasladando al servidor", error: err.message });
+        .json({ message: "Error trasladando al servidor" });
     } finally {
       client.release();
     }
@@ -285,9 +288,9 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
+      console.error("Error obteniendo servidores de la unidad:", err);
       return res.status(500).json({
         message: "Error obteniendo servidores de la unidad",
-        error: err.message,
       });
     }
   },
@@ -322,9 +325,10 @@ router.patch(
         ...rows[0],
       });
     } catch (err) {
+      console.error("Error actualizando la unidad:", err);
       return res
         .status(500)
-        .json({ message: "Error actualizando la unidad", error: err.message });
+        .json({ message: "Error actualizando la unidad" });
     }
   },
 );
@@ -370,9 +374,9 @@ router.patch(
         ...rows[0],
       });
     } catch (err) {
+      console.error("Error actualizando los días de vacación del servidor:", err);
       return res.status(500).json({
         message: "Error actualizando los días de vacación del servidor",
-        error: err.message,
       });
     }
   },
@@ -402,9 +406,10 @@ router.put(
         return res.status(404).json({ message: "Unidad no encontrada" });
       return res.json(rows[0]);
     } catch (err) {
+      console.error("Error asignando jefe:", err);
       return res
         .status(500)
-        .json({ message: "Error asignando jefe", error: err.message });
+        .json({ message: "Error asignando jefe" });
     }
   },
 );
@@ -487,10 +492,11 @@ router.post(
         .status(201)
         .json({ message: "Jefe de área creado y asignado correctamente" });
     } catch (err) {
+      console.error("Error creando jefe:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error creando jefe", error: err.message });
+        .json({ message: "Error creando jefe" });
     } finally {
       client.release();
     }
@@ -525,9 +531,9 @@ router.get(
       `);
       return res.json(rows);
     } catch (err) {
+      console.error("Error buscando posibles duplicados:", err);
       return res.status(500).json({
         message: "Error buscando posibles duplicados",
-        error: err.message,
       });
     }
   },
@@ -563,9 +569,9 @@ router.post(
       );
       return res.json({ message: "Descartado correctamente" });
     } catch (err) {
+      console.error("Error descartando el posible duplicado:", err);
       return res.status(500).json({
         message: "Error descartando el posible duplicado",
-        error: err.message,
       });
     }
   },

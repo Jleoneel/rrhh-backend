@@ -39,9 +39,10 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
+      console.error("Error obteniendo vacaciones:", err);
       return res
         .status(500)
-        .json({ message: "Error obteniendo vacaciones", error: err.message });
+        .json({ message: "Error obteniendo vacaciones" });
     }
   },
 );
@@ -288,10 +289,11 @@ router.post(
 
       return res.status(201).json(nuevaSolicitud);
     } catch (err) {
+      console.error("Error creando solicitud de vacaciones:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error creando solicitud", error: err.message });
+        .json({ message: "Error creando solicitud" });
     } finally {
       client.release();
     }
@@ -347,10 +349,11 @@ router.put(
       await client.query("COMMIT");
       return res.json({ message: "Solicitud cancelada correctamente" });
     } catch (err) {
+      console.error("Error cancelando solicitud de vacaciones:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error cancelando", error: err.message });
+        .json({ message: "Error cancelando" });
     } finally {
       client.release();
     }

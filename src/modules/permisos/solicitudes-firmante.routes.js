@@ -64,9 +64,10 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
+      console.error("Error obteniendo permisos:", err);
       return res
         .status(500)
-        .json({ message: "Error obteniendo permisos", error: err.message });
+        .json({ message: "Error obteniendo permisos" });
     }
   },
 );
@@ -281,10 +282,11 @@ router.post(
       }
       return res.status(201).json(rows[0]);
     } catch (err) {
+      console.error("Error creando solicitud:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error creando solicitud", error: err.message });
+        .json({ message: "Error creando solicitud" });
     } finally {
       client.release();
     }
@@ -363,10 +365,11 @@ router.put(
       await client.query("COMMIT");
       return res.json({ message: "Solicitud cancelada correctamente" });
     } catch (err) {
+      console.error("Error cancelando solicitud:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error cancelando", error: err.message });
+        .json({ message: "Error cancelando" });
     } finally {
       client.release();
     }

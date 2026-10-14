@@ -36,9 +36,9 @@ export async function requireAccesoUploads(req, res, next) {
       message: "No autorizado para ver los documentos de esta acción",
     });
   } catch (err) {
+    console.error("Error validando acceso al archivo:", err);
     return res.status(500).json({
       message: "Error validando acceso al archivo",
-      error: err.message,
     });
   }
 }

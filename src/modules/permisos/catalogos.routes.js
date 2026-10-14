@@ -12,7 +12,8 @@ router.get("/tipos", requireAuth, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo tipos", error: err.message });
+    console.error("Error obteniendo tipos:", err);
+    return res.status(500).json({ message: "Error obteniendo tipos" });
   }
 });
 
@@ -31,9 +32,9 @@ router.get("/firmantes-disponibles", requireAuth, async (req, res) => {
     `);
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ 
-      message: "Error obteniendo firmantes", 
-      error: err.message 
+    console.error("Error obteniendo firmantes:", err);
+    return res.status(500).json({
+      message: "Error obteniendo firmantes",
     });
   }
 });

@@ -84,9 +84,10 @@ router.post(
         p12_path: p12Path,
       });
     } catch (err) {
+      console.error("Error guardando certificado:", err);
       return res
         .status(500)
-        .json({ message: "Error guardando certificado", error: err.message });
+        .json({ message: "Error guardando certificado" });
     }
   },
 );
@@ -105,7 +106,8 @@ router.get("/mi-certificado", requireAuth, async (req, res) => {
       p12_activo: rows[0]?.p12_activo || false,
     });
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error obteniendo certificado:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -361,9 +363,10 @@ router.post(
         rol: rolFirma,
       });
     } catch (err) {
+      console.error("Error firmando acción:", err);
       return res
         .status(500)
-        .json({ message: "Error firmando acción", error: err.message });
+        .json({ message: "Error firmando acción" });
     }
   },
 );
@@ -399,9 +402,10 @@ router.get("/recepciones", requireAuth, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
+    console.error("Error obteniendo recepciones:", err);
     return res
       .status(500)
-      .json({ message: "Error obteniendo recepciones", error: err.message });
+      .json({ message: "Error obteniendo recepciones" });
   }
 });
 
@@ -560,9 +564,10 @@ router.post(
         archivo: archivoPath,
       });
     } catch (err) {
+      console.error("Error firmando recepción:", err);
       return res
         .status(500)
-        .json({ message: "Error firmando recepción", error: err.message });
+        .json({ message: "Error firmando recepción" });
     }
   },
 );

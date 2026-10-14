@@ -186,7 +186,6 @@ export async function loginByCedula(req, res) {
     console.error("Error en login:", error);
     return res.status(500).json({
       message: "Error interno del servidor",
-      error: error.message,
       code: "SERVER_ERROR",
     });
   }

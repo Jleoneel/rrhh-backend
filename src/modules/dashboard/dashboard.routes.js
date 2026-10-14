@@ -28,7 +28,6 @@ router.get("/acciones-resumen", requireAuth, async (req, res) => {
     console.error("Error dashboard acciones:", error);
     res.status(500).json({
       message: "Error obteniendo resumen del dashboard",
-      error: error.message,
     });
   }
 });

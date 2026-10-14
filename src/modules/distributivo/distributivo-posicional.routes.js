@@ -107,10 +107,11 @@ router.post(
         total: filas.length - DATA_START,
       });
     } catch (err) {
+      console.error("Error importando distributivo posicional:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error importando", error: err.message });
+        .json({ message: "Error importando" });
     } finally {
       client.release();
     }

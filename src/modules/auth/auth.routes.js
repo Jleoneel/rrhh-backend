@@ -55,10 +55,11 @@ router.post(
         creados,
       });
     } catch (err) {
+      console.error("Error creando cuentas:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error creando cuentas", error: err.message });
+        .json({ message: "Error creando cuentas" });
     } finally {
       client.release();
     }

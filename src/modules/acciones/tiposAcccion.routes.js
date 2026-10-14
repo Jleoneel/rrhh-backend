@@ -23,7 +23,6 @@ router.get("/", requireAuth, async (req, res) => {
     console.error("Error listando tipos de acción:", error);
     res.status(500).json({
       message: "Error obteniendo tipos de acción",
-      error: error.message,
     });
   }
 });

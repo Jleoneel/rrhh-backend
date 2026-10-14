@@ -29,9 +29,9 @@ export async function resetPasswordServidor(req, res) {
       servidor_id: rows[0].servidor_id,
     });
   } catch (err) {
+    console.error("Error al actualizar contraseña:", err);
     return res.status(500).json({
       message: "Error al actualizar contraseña",
-      error: err.message,
     });
   }
 }

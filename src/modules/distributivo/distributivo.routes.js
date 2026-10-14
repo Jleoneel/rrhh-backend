@@ -142,8 +142,9 @@ router.post(
       sync: syncRows[0].result,
     });
   } catch (err) {
+    console.error("Error importando distributivo:", err);
     await client.query("ROLLBACK");
-    return res.status(500).json({ ok: false, message: "Error importando distributivo", error: err.message });
+    return res.status(500).json({ ok: false, message: "Error importando distributivo" });
   } finally {
     client.release();
   }

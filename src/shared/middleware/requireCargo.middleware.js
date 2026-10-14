@@ -48,9 +48,9 @@ export function requireCargo(cargosPermitidos = []) {
 
       next();
     } catch (error) {
+      console.error("Error validando cargo:", error);
       res.status(500).json({
         message: "Error validando cargo",
-        error: error.message,
       });
     }
   };

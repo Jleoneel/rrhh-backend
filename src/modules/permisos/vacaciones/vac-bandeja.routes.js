@@ -48,7 +48,8 @@ router.get("/bandeja-vacaciones", requireAuth, requireFirmante, async (req, res)
     `, [firmante_id]);
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo bandeja", error: err.message });
+    console.error("Error obteniendo bandeja:", err);
+    return res.status(500).json({ message: "Error obteniendo bandeja" });
   }
 });
 
@@ -163,7 +164,8 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
       totalPages: Math.max(1, Math.ceil(total / parseInt(limit))),
     });
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo reporte", error: err.message });
+    console.error("Error obteniendo reporte:", err);
+    return res.status(500).json({ message: "Error obteniendo reporte" });
   }
 });
 
@@ -281,8 +283,9 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
 
     return res.json({ message: "Solicitud procesada correctamente" });
   } catch (err) {
+    console.error("Error procesando solicitud de vacaciones:", err);
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error procesando solicitud", error: err.message });
+    return res.status(500).json({ message: "Error procesando solicitud" });
   } finally {
     client.release();
   }

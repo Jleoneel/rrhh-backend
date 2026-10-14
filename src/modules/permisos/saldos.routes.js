@@ -39,7 +39,8 @@ router.get("/saldos", requireAuth, requireFirmante, async (req, res) => {
     `);
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldos", error: err.message });
+    console.error("Error obteniendo saldos:", err);
+    return res.status(500).json({ message: "Error obteniendo saldos" });
   }
 });
 
@@ -75,8 +76,9 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
     await client.query("COMMIT");
     return res.status(201).json(rows[0]);
   } catch (err) {
+    console.error("Error creando saldo:", err);
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: "Error creando saldo", error: err.message });
+    return res.status(500).json({ message: "Error creando saldo" });
   } finally {
     client.release();
   }
@@ -151,10 +153,11 @@ router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
     await client.query("COMMIT");
     return res.json(rows[0]);
   } catch (err) {
+    console.error("Error corrigiendo saldo:", err);
     await client.query("ROLLBACK");
     return res
       .status(500)
-      .json({ message: "Error corrigiendo saldo", error: err.message });
+      .json({ message: "Error corrigiendo saldo" });
   } finally {
     client.release();
   }
@@ -178,7 +181,8 @@ router.get("/mi-saldo", requireAuth, requireServidor, async (req, res) => {
     }
     return res.json(rows[0]);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldo", error: err.message });
+    console.error("Error obteniendo saldo:", err);
+    return res.status(500).json({ message: "Error obteniendo saldo" });
   }
 });
 
@@ -203,7 +207,8 @@ router.get("/mi-saldo-firmante", requireAuth, requireFirmante, async (req, res) 
     }
     return res.json(rows[0]);
   } catch (err) {
-    return res.status(500).json({ message: "Error obteniendo saldo", error: err.message });
+    console.error("Error obteniendo saldo:", err);
+    return res.status(500).json({ message: "Error obteniendo saldo" });
   }
 });
 

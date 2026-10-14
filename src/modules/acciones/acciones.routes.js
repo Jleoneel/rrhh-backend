@@ -348,6 +348,7 @@ router.post(
         numero_elaboracion: acc.rows[0].numero_elaboracion,
       });
     } catch (error) {
+      console.error("Error creando acción:", error);
       await client.query("ROLLBACK");
       if (error.code === "23505") {
         return res.status(409).json({
@@ -357,7 +358,6 @@ router.post(
       }
       return res.status(500).json({
         message: "Error creando acción",
-        error: error.message,
       });
     } finally {
       client.release();
@@ -433,9 +433,9 @@ router.get("/", requireAuth, async (req, res) => {
     const { rows } = await pool.query(sql, values);
     return res.json(rows);
   } catch (error) {
+    console.error("Error obteniendo acciones de personal:", error);
     return res.status(500).json({
       message: "Error obteniendo acciones de personal",
-      error: error.message,
     });
   }
 });
@@ -964,9 +964,9 @@ async function requireAccesoAccion(req, res, next) {
       message: "No autorizado para ver los documentos de esta acción",
     });
   } catch (err) {
+    console.error("Error validando acceso a la acción:", err);
     return res.status(500).json({
       message: "Error validando acceso a la acción",
-      error: err.message,
     });
   }
 }
@@ -1053,10 +1053,11 @@ router.put(
         message: `Acción ${accion.numero_elaboracion} marcada como insubsistente correctamente`,
       });
     } catch (err) {
+      console.error("Error marcando acción como insubsistente:", err);
       await client.query("ROLLBACK");
       return res
         .status(500)
-        .json({ message: "Error procesando solicitud", error: err.message });
+        .json({ message: "Error procesando solicitud" });
     } finally {
       client.release();
     }

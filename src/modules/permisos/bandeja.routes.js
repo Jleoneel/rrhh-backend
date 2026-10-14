@@ -37,9 +37,10 @@ router.get("/bandeja", requireAuth, requireFirmante, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
+    console.error("Error obteniendo bandeja:", err);
     return res
       .status(500)
-      .json({ message: "Error obteniendo bandeja", error: err.message });
+      .json({ message: "Error obteniendo bandeja" });
   }
 });
 
@@ -219,10 +220,11 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
       message: `Permiso ${estado.toLowerCase()} correctamente`,
     });
   } catch (err) {
+    console.error("Error procesando solicitud de permiso:", err);
     await client.query("ROLLBACK");
     return res
       .status(500)
-      .json({ message: "Error procesando solicitud", error: err.message });
+      .json({ message: "Error procesando solicitud" });
   } finally {
     client.release();
   }

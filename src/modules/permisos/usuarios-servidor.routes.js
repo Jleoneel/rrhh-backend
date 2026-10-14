@@ -98,9 +98,10 @@ router.get(
         totalPages: Math.ceil(total / parseInt(limit)),
       });
     } catch (err) {
+      console.error("Error obteniendo servidores:", err);
       return res
         .status(500)
-        .json({ message: "Error obteniendo servidores", error: err.message });
+        .json({ message: "Error obteniendo servidores" });
     }
   },
 );
@@ -143,9 +144,10 @@ router.post(
       );
       return res.status(201).json(rows[0]);
     } catch (err) {
+      console.error("Error creando usuario:", err);
       return res
         .status(500)
-        .json({ message: "Error creando usuario", error: err.message });
+        .json({ message: "Error creando usuario" });
     }
   },
 );
@@ -168,9 +170,10 @@ router.put(
         return res.status(404).json({ message: "Usuario no encontrado" });
       return res.json(rows[0]);
     } catch (err) {
+      console.error("Error actualizando usuario:", err);
       return res
         .status(500)
-        .json({ message: "Error actualizando usuario", error: err.message });
+        .json({ message: "Error actualizando usuario" });
     }
   },
 );

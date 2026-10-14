@@ -54,7 +54,8 @@ router.get("/", requireAuth, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en recepcion-notificaciones:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -72,7 +73,8 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en recepcion-notificaciones:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 
@@ -89,7 +91,8 @@ router.patch("/leer-todas", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ message: "Error", error: err.message });
+    console.error("Error en recepcion-notificaciones:", err);
+    return res.status(500).json({ message: "Error" });
   }
 });
 

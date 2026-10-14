@@ -217,9 +217,10 @@ router.post(
         message: "Solicitud firmada y enviada al siguiente paso",
       });
     } catch (err) {
+      console.error("Error firmando solicitud:", err);
       return res
         .status(500)
-        .json({ message: "Error firmando solicitud", error: err.message });
+        .json({ message: "Error firmando solicitud" });
     }
   },
 );
@@ -377,9 +378,10 @@ router.post(
 
       return res.json({ message: "Solicitud firmada y enviada a UATH" });
     } catch (err) {
+      console.error("Error firmando solicitud:", err);
       return res
         .status(500)
-        .json({ message: "Error firmando solicitud", error: err.message });
+        .json({ message: "Error firmando solicitud" });
     }
   },
 );
@@ -516,7 +518,8 @@ router.post(
 
       return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
-      return res.status(500).json({ message: "Error confirmando certificación", error: err.message });
+      console.error("Error confirmando certificación:", err);
+      return res.status(500).json({ message: "Error confirmando certificación" });
     }
   },
 );
@@ -591,9 +594,10 @@ router.get(
       );
       fs.createReadStream(filePath).pipe(res);
     } catch (err) {
+      console.error("Error descargando archivo:", err);
       return res
         .status(500)
-        .json({ message: "Error descargando archivo", error: err.message });
+        .json({ message: "Error descargando archivo" });
     }
   },
 );

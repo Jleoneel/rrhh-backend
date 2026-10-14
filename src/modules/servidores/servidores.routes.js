@@ -640,9 +640,9 @@ router.patch(
         ...rows[0],
       });
     } catch (err) {
+      console.error("Error actualizando el estado del servidor:", err);
       return res.status(500).json({
         message: "Error actualizando el estado del servidor",
-        error: err.message,
       });
     }
   },

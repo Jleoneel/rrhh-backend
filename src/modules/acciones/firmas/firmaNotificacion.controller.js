@@ -48,9 +48,9 @@ export async function listar(req, res) {
 
     return res.json(rows);
   } catch (err) {
+    console.error("Error obteniendo notificaciones:", err);
     return res.status(500).json({
       message: "Error obteniendo notificaciones",
-      error: err.message,
     });
   }
 }
@@ -71,9 +71,9 @@ export async function marcarLeida(req, res) {
 
     return res.json({ ok: true });
   } catch (err) {
+    console.error("Error marcando notificación como leída:", err);
     return res.status(500).json({
       message: "Error marcando notificación como leída",
-      error: err.message,
     });
   }
 }
@@ -93,9 +93,9 @@ export async function marcarTodasLeidas(req, res) {
 
     return res.json({ ok: true });
   } catch (err) {
+    console.error("Error marcando notificaciones como leídas:", err);
     return res.status(500).json({
       message: "Error marcando notificaciones como leídas",
-      error: err.message,
     });
   }
 }
