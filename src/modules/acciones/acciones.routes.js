@@ -10,6 +10,7 @@ import {
 import { uploadAnexo } from "../../shared/utils/upload.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
 import { CARGO_IDS } from "../../shared/constants/cargos.js";
+import { conManejoErrorMulter } from "../../shared/middleware/manejarErrorMulter.middleware.js";
 
 const router = Router();
 const CARGO_ASISTENTE_UATH = CARGO_IDS.ASISTENTE_UATH;
@@ -983,7 +984,7 @@ router.post(
   "/:accionId/anexos",
   requireAuth,
   requireCargo([CARGO_ASISTENTE_UATH]),
-  uploadAnx.single("file"),
+  conManejoErrorMulter(uploadAnx.single("file")),
   anexosCtrl.subir,
 );
 
