@@ -13,8 +13,8 @@ export async function resetPasswordServidor(req, res) {
     const hash = await bcrypt.hash(String(password), 10);
 
     const { rows } = await pool.query(
-      `UPDATE core.usuario_servidor 
-       SET password_hash = $2 
+      `UPDATE core.usuario_servidor
+       SET password_hash = $2, debe_cambiar_password = true
        WHERE servidor_id = $1
        RETURNING *`,
       [id, hash]

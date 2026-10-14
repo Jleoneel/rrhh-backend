@@ -155,7 +155,7 @@ export async function resetPasswordFirmante(req, res) {
     const hash = await bcrypt.hash(String(password), 10);
     const { rows } = await pool.query(
       `
-      UPDATE core.firmante SET password_hash = $2 WHERE id = $1
+      UPDATE core.firmante SET password_hash = $2, debe_cambiar_password = true WHERE id = $1
       RETURNING id, numero_identificacion AS cedula, nombre
     `,
       [id, hash],

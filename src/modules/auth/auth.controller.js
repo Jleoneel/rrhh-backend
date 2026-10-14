@@ -20,9 +20,9 @@ export async function loginByCedula(req, res) {
   try {
     // Buscar en firmantes
     const qFirmante = `
-      SELECT 
+      SELECT
         f.id, f.numero_identificacion, f.nombre,
-        f.cargo_id, f.activo, f.password_hash,
+        f.cargo_id, f.activo, f.password_hash, f.debe_cambiar_password,
         c.nombre AS cargo_nombre
       FROM core.firmante f
       LEFT JOIN core.cargo c ON c.id = f.cargo_id
@@ -95,6 +95,7 @@ export async function loginByCedula(req, res) {
           es_admin,
           tipo_usuario: "FIRMANTE",
           es_jefe,
+          debe_cambiar_password: firmante.debe_cambiar_password,
         },
       });
     }
@@ -102,7 +103,7 @@ export async function loginByCedula(req, res) {
     //Buscar en servidores
     const qServidor = `
       SELECT
-        us.id, us.password_hash, us.activo,
+        us.id, us.password_hash, us.activo, us.debe_cambiar_password,
         sv.id AS servidor_id, sv.activo AS servidor_activo,
         sv.nombres, sv.numero_identificacion,
         u.id AS unidad_organica_id,
@@ -177,6 +178,7 @@ export async function loginByCedula(req, res) {
         tipo_usuario: "SERVIDOR",
         unidad_organica_id: servidor.unidad_organica_id,
         unidad_organica: servidor.unidad_organica,
+        debe_cambiar_password: servidor.debe_cambiar_password,
       },
     });
 
@@ -233,12 +235,12 @@ export async function cambiarPassword(req, res) {
 
     if (tipoUsuario === "SERVIDOR") {
       await pool.query(
-        `UPDATE core.usuario_servidor SET password_hash = $1 WHERE id = $2`,
+        `UPDATE core.usuario_servidor SET password_hash = $1, debe_cambiar_password = false WHERE id = $2`,
         [nuevoHash, firmanteId]
       );
     } else {
       await pool.query(
-        `UPDATE core.firmante SET password_hash = $1 WHERE id = $2`,
+        `UPDATE core.firmante SET password_hash = $1, debe_cambiar_password = false WHERE id = $2`,
         [nuevoHash, firmanteId]
       );
     }
