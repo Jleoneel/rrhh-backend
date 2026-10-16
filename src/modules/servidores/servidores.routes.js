@@ -10,7 +10,16 @@ import { CARGO_IDS } from "../../shared/constants/cargos.js";
 
 const router = Router();
 // GET /api/servidores/:cedula/situacion-actual
-router.get("/:cedula/situacion-actual", async (req, res) => {
+// Sin auth, cualquiera (sin login) podía consultar nombre, puesto, unidad
+// y RMU (remuneración) de cualquier cédula del hospital, solo adivinando
+// el número. Mismo patrón de lectura que "Servidores actuales" de una
+// unidad (requireFirmante, no el requireCargo más estricto, porque es
+// de solo lectura y la usa cualquier firmante al crear una Acción).
+router.get(
+  "/:cedula/situacion-actual",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
   const { cedula } = req.params;
 
   const sql = `
@@ -60,11 +69,12 @@ router.get("/:cedula/situacion-actual", async (req, res) => {
     LIMIT 1;
   `;
 
-  const { rows } = await pool.query(sql, [cedula]);
-  if (!rows.length)
-    return res.status(404).json({ message: "Servidor no encontrado" });
-  res.json(rows[0]);
-});
+    const { rows } = await pool.query(sql, [cedula]);
+    if (!rows.length)
+      return res.status(404).json({ message: "Servidor no encontrado" });
+    res.json(rows[0]);
+  },
+);
 
 // POST /api/servidores/manual
 // Registra un servidor que NO consta en el distributivo (origen='MANUAL'),
