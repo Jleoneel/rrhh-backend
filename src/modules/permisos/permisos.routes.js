@@ -11,6 +11,7 @@ import catalogosRoutes from "./catalogos.routes.js";
 import notificacionesPermisoRoutes from "./notificaciones-permiso.routes.js";
 import reporteRoutes from "./reporte.routes.js";
 import vacacionesRoutes from "./vacaciones/vacaciones.routes.js";
+import configuracionNotificacionesRoutes from "./configuracionNotificaciones.routes.js";
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use(catalogosRoutes);
 router.use("/notificaciones", notificacionesPermisoRoutes);
 router.use(reporteRoutes);
 router.use(vacacionesRoutes);
+router.use(configuracionNotificacionesRoutes);
 
 export default router;

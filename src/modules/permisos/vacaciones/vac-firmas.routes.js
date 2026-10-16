@@ -516,6 +516,24 @@ router.post(
         });
       }
 
+      // Norma institucional: toda vacación aprobada se notifica, además
+      // de al servidor, a un departamento fijo configurado por UATH —
+      // ver core.configuracion_notificaciones.
+      const configR = await pool.query(
+        `SELECT email_notificacion_vacaciones FROM core.configuracion_notificaciones WHERE id = 1`,
+      );
+      const correoDepartamento = configR.rows[0]?.email_notificacion_vacaciones;
+      if (correoDepartamento) {
+        await enviarCorreo(correoDepartamento, "vacacionAprobadaTerceros", {
+          servidor_nombre: svEmailR.rows[0]?.nombres || "",
+          tipo: solicitud.tipo,
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+          dias: solicitud.dias_solicitados,
+          aprobado_por: solicitud.uath_nombre || "",
+        });
+      }
+
       return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
       console.error("Error confirmando certificación:", err);

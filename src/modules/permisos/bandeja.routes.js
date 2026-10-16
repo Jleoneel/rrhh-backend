@@ -216,6 +216,29 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
       }
     }
 
+    // Norma institucional: todo permiso por horas aprobado se notifica,
+    // además de al servidor, a un destinatario fijo configurado por UATH
+    // (independiente de si el servidor tiene o no correo registrado) —
+    // ver core.configuracion_notificaciones.
+    if (estado === "APROBADO") {
+      const configR = await pool.query(
+        `SELECT email_notificacion_permisos FROM core.configuracion_notificaciones WHERE id = 1`,
+      );
+      const correoNotificacion = configR.rows[0]?.email_notificacion_permisos;
+      if (correoNotificacion) {
+        await enviarCorreo(correoNotificacion, "permisoAprobadoTerceros", {
+          servidor_nombre: svEmailR.rows[0]?.nombres || "",
+          cedula: svEmailR.rows[0]?.numero_identificacion || "",
+          tipo: tipoPermisoR.rows[0]?.nombre || "",
+          unidad: unidadPermisoR.rows[0]?.nombre || "",
+          fecha: solicitud.fecha,
+          horario: horarioPermiso,
+          horas: `${solicitud.horas_solicitadas}h`,
+          aprobado_por: firmante_nombre || "",
+        });
+      }
+    }
+
     return res.json({
       message: `Permiso ${estado.toLowerCase()} correctamente`,
     });

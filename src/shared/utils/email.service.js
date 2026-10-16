@@ -509,6 +509,173 @@ const plantillas = {
     `,
   }),
 
+  // Copia informativa a un destinatario fijo configurado por UATH (no el
+  // servidor solicitante) — norma institucional: todo permiso por horas
+  // aprobado debe notificarse a una persona puntual. Ver
+  // core.configuracion_notificaciones y bandeja.routes.js.
+  permisoAprobadoTerceros: ({
+    servidor_nombre,
+    cedula,
+    tipo,
+    unidad,
+    fecha,
+    horario,
+    horas,
+    aprobado_por,
+  }) => ({
+    subject: `[SITH] Permiso aprobado - ${servidor_nombre}`,
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <div style="background: linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryLight} 100%); padding: 28px 24px; text-align: center;">
+          <div style="margin-bottom: 16px;">
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
+          </div>
+          <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
+          <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
+          <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 12px;">Sistema de Talento Humano - SITH</p>
+        </div>
+
+        <div style="padding: 28px; background: ${COLORS.white};">
+          <p style="color: ${COLORS.text}; margin: 0 0 20px; line-height: 1.5;">
+            Se le informa que se aprobó el siguiente permiso por horas:
+          </p>
+
+          <div style="background: ${COLORS.background}; border-radius: 12px; padding: 20px; margin: 24px 0; border-left: 4px solid ${COLORS.primary};">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 35%;">Servidor:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${servidor_nombre}</td>
+              </tr>
+              ${
+                cedula
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Cédula:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${cedula}</td>
+              </tr>`
+                  : ""
+              }
+              ${
+                unidad
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Unidad:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${unidad}</td>
+              </tr>`
+                  : ""
+              }
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Tipo:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
+              </tr>
+              ${
+                horario
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horario:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${horario}</td>
+              </tr>`
+                  : ""
+              }
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Horas aprobadas:</td>
+                <td style="padding: 8px 0; color: ${COLORS.secondary}; font-weight: 700; font-size: 14px;">${horas}</td>
+              </tr>
+              ${
+                aprobado_por
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Aprobado por:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${aprobado_por}</td>
+              </tr>`
+                  : ""
+              }
+            </table>
+          </div>
+        </div>
+
+        <div style="background: ${COLORS.background}; padding: 16px 24px; text-align: center; border-top: 1px solid ${COLORS.border};">
+          <p style="color: ${COLORS.textLight}; font-size: 11px; margin: 0;">
+            Este es un correo automático del sistema SITH — No responder
+          </p>
+        </div>
+      </div>
+    `,
+  }),
+
+  // Copia informativa al departamento configurado por UATH — norma
+  // institucional: toda vacación aprobada debe notificarse a un
+  // departamento puntual. Ver core.configuracion_notificaciones y
+  // vac-firmas.routes.js.
+  vacacionAprobadaTerceros: ({
+    servidor_nombre,
+    tipo,
+    fecha_inicio,
+    fecha_fin,
+    dias,
+    aprobado_por,
+  }) => ({
+    subject: `[SITH] Vacación aprobada - ${servidor_nombre}`,
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${COLORS.border}; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <div style="background: linear-gradient(135deg, ${COLORS.secondary} 0%, ${COLORS.secondaryLight} 100%); padding: 28px 24px; text-align: center;">
+          <div style="margin-bottom: 16px;">
+            <img src="${LOGO_URL}" alt="Hospital Logo" style="height: 60px; width: auto;" />
+          </div>
+          <h2 style="color: ${COLORS.white}; margin: 0; font-size: 18px; font-weight: 600;">Hospital Provincial de Portoviejo</h2>
+          <p style="color: ${COLORS.white}; margin: 4px 0 0; font-size: 14px; font-weight: 500;">Dr. Verdi Cevallos Balda</p>
+          <p style="color: rgba(255,255,255,0.8); margin: 8px 0 0; font-size: 12px;">Sistema de Talento Humano - SITH</p>
+        </div>
+
+        <div style="padding: 28px; background: ${COLORS.white};">
+          <p style="color: ${COLORS.text}; margin: 0 0 20px; line-height: 1.5;">
+            Se le informa que se aprobó la siguiente solicitud de <strong>${tipo === "VACACION_PROGRAMADA" ? "vacaciones" : "permiso con cargo"}</strong>:
+          </p>
+
+          <div style="background: ${COLORS.background}; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid ${COLORS.secondary}20;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px; width: 40%;">Servidor:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${servidor_nombre}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Tipo:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${tipo === "VACACION_PROGRAMADA" ? "Vacación Programada" : "Permiso con Cargo"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Período:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha_inicio} → ${fecha_fin}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días aprobados:</td>
+                <td style="padding: 8px 0; color: ${COLORS.secondary}; font-weight: 700; font-size: 16px;">${dias} días</td>
+              </tr>
+              ${
+                aprobado_por
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Aprobado por:</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${aprobado_por}</td>
+              </tr>`
+                  : ""
+              }
+            </table>
+          </div>
+        </div>
+
+        <div style="background: ${COLORS.background}; padding: 16px 24px; text-align: center; border-top: 1px solid ${COLORS.border};">
+          <p style="color: ${COLORS.textLight}; font-size: 11px; margin: 0;">
+            Este es un correo automático del sistema SITH — No responder
+          </p>
+        </div>
+      </div>
+    `,
+  }),
+
   accionRecepcionPendiente: ({
     servidor_nombre,
     tipo_accion,
