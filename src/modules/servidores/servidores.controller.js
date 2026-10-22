@@ -24,9 +24,36 @@ export async function resetPasswordServidor(req, res) {
       return res.status(404).json({ message: "Servidor no encontrado" });
     }
 
+    // Si esta cédula también tiene cuenta de firmante (jefe de área que
+    // además está en el distributivo como servidor, por ejemplo), el login
+    // revisa la tabla firmante PRIMERO (ver auth.controller.js) — si existe
+    // coincidencia ahí, ni siquiera llega a mirar usuario_servidor. Sin
+    // este UPDATE, el reset de arriba no tiene ningún efecto real para esa
+    // persona: queda entrando con su password de firmante de siempre,
+    // nunca con la que se acaba de resetear.
+    const servidorR = await pool.query(
+      `SELECT numero_identificacion FROM core.servidor WHERE id = $1`,
+      [id],
+    );
+    const cedula = servidorR.rows[0]?.numero_identificacion;
+    let tambienFirmante = false;
+    if (cedula) {
+      const firmanteR = await pool.query(
+        `UPDATE core.firmante
+         SET password_hash = $1, debe_cambiar_password = true
+         WHERE numero_identificacion = $2
+         RETURNING id`,
+        [hash, cedula],
+      );
+      tambienFirmante = firmanteR.rowCount > 0;
+    }
+
     return res.json({
-      message: "Contraseña actualizada correctamente",
+      message: tambienFirmante
+        ? "Contraseña actualizada correctamente (también se reseteó su cuenta de firmante, con la misma cédula)"
+        : "Contraseña actualizada correctamente",
       servidor_id: rows[0].servidor_id,
+      tambien_firmante: tambienFirmante,
     });
   } catch (err) {
     console.error("Error al actualizar contraseña:", err);
