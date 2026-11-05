@@ -216,14 +216,32 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
       }
     }
 
-    // Norma institucional: todo permiso por horas aprobado se notifica,
-    // además de al servidor, a un destinatario fijo configurado por UATH
-    // (independiente de si el servidor tiene o no correo registrado) —
-    // ver core.configuracion_notificaciones.
+    // Norma institucional: el permiso por horas aprobado se notifica,
+    // además de al servidor, a un destinatario fijo configurado por UATH —
+    // pero SOLO cuando el servidor es médico (general o especialista,
+    // incluye subespecialistas). Se identifica por denominacion_puesto.nombre
+    // empezando con "MEDICO"/"MEDICO/A" (cubre "MEDICO GENERAL", "MEDICO/A
+    // ESPECIALISTA EN...", "MEDICO/A SUBESPECIALISTA EN...", etc. — y NO
+    // mezcla roles como "TECNOLOGO MEDICO DE LABORATORIO", que no empiezan
+    // con esa palabra). Se toma el puesto ACTIVO del servidor al momento de
+    // la aprobación. Ver core.configuracion_notificaciones.
     if (estado === "APROBADO") {
-      const configR = await pool.query(
-        `SELECT email_notificacion_permisos FROM core.configuracion_notificaciones WHERE id = 1`,
+      const puestoR = await pool.query(
+        `SELECT d.nombre
+         FROM core.asignacion_puesto ap
+         JOIN core.puesto p ON p.id = ap.puesto_id
+         JOIN core.denominacion_puesto d ON d.id = p.denominacion_puesto_id
+         WHERE ap.servidor_id = $1 AND ap.estado = 'ACTIVA'
+         LIMIT 1`,
+        [solicitud.servidor_id],
       );
+      const esMedico = /^medico(\/a)?\b/i.test(puestoR.rows[0]?.nombre || "");
+
+      const configR = esMedico
+        ? await pool.query(
+            `SELECT email_notificacion_permisos FROM core.configuracion_notificaciones WHERE id = 1`,
+          )
+        : { rows: [] };
       const correoNotificacion = configR.rows[0]?.email_notificacion_permisos;
       if (correoNotificacion) {
         await enviarCorreo(correoNotificacion, "permisoAprobadoTerceros", {
