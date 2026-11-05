@@ -47,33 +47,88 @@ async function puedeGestionarServidor(req, servidorId) {
   return rows.length > 0;
 }
 
-// GET /api/cronograma-vacaciones?anio=2026
+// Arma el mismo WHERE (scoping por jefe + filtros de unidad/búsqueda) con
+// los placeholders numerados desde `desde` — reutilizado tanto por el
+// listado principal como por el COUNT de la paginación, que no comparten
+// el mismo set de parámetros (el COUNT no necesita el año).
+function construirFiltros(req, desde) {
+  const { unidad_organica_id, search } = req.query;
+  const accesoTotal = tieneAccesoTotal(req);
+  const values = [];
+  let i = desde;
+  let sql = "";
+  if (!accesoTotal) {
+    sql += ` AND (u.jefe_id = $${i} OR u.jefe_superior_id = $${i})`;
+    values.push(req.user.firmante_id);
+    i++;
+  }
+  if (unidad_organica_id) {
+    sql += ` AND u.id = $${i}`;
+    values.push(unidad_organica_id);
+    i++;
+  }
+  if (search) {
+    sql += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
+    values.push(`%${search}%`);
+    i++;
+  }
+  return { sql, values, siguiente: i };
+}
+
+// GET /api/cronograma-vacaciones?anio=2026&page=1&limit=10
 // Personal visible para quien consulta (su propia unidad, o todos si es
 // UATH/admin) con el total de días ya planificados ese año.
 router.get("/", requireAuth, requireFirmante, async (req, res) => {
   const anio = parseInt(req.query.anio) || new Date().getFullYear();
-  const { unidad_organica_id, search } = req.query;
-  try {
-    const accesoTotal = tieneAccesoTotal(req);
-    const values = [anio];
-    let i = 2;
-    let filtros = "";
-    if (!accesoTotal) {
-      filtros += ` AND (u.jefe_id = $${i} OR u.jefe_superior_id = $${i})`;
-      values.push(req.user.firmante_id);
-      i++;
-    }
-    if (unidad_organica_id) {
-      filtros += ` AND u.id = $${i}`;
-      values.push(unidad_organica_id);
-      i++;
-    }
-    if (search) {
-      filtros += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
-      values.push(`%${search}%`);
-      i++;
-    }
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.max(1, parseInt(req.query.limit) || 10);
+  const offset = (page - 1) * limit;
 
+  try {
+    const countFiltros = construirFiltros(req, 1);
+    const countR = await pool.query(
+      `
+      SELECT COUNT(DISTINCT sv.id) AS total
+      FROM core.asignacion_puesto ap
+      JOIN core.puesto p ON p.id = ap.puesto_id
+      JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+      JOIN core.servidor sv ON sv.id = ap.servidor_id
+      WHERE ap.estado = 'ACTIVA' AND sv.activo = true
+      ${countFiltros.sql}
+      `,
+      countFiltros.values,
+    );
+    const total = parseInt(countR.rows[0].total);
+
+    // Conteo sobre TODO lo que coincide con los filtros (no solo la página
+    // actual) para las tarjetas de resumen — mismo criterio que ya usa
+    // reporte.routes.js para no mostrar un resumen que cambie según la
+    // página en la que esté parado quien consulta.
+    const resumenFiltros = construirFiltros(req, 2);
+    const resumenR = await pool.query(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE dias_totales > 0)::int AS con_vacaciones,
+        COUNT(*) FILTER (WHERE dias_totales >= $${resumenFiltros.siguiente})::int AS en_tope
+      FROM (
+        SELECT sv.id, COALESCE(SUM(b.dias), 0) AS dias_totales
+        FROM core.asignacion_puesto ap
+        JOIN core.puesto p ON p.id = ap.puesto_id
+        JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+        JOIN core.servidor sv ON sv.id = ap.servidor_id
+        LEFT JOIN core.cronograma_vacaciones_bloque b
+          ON b.servidor_id = sv.id AND b.anio = $1
+        WHERE ap.estado = 'ACTIVA' AND sv.activo = true
+        ${resumenFiltros.sql}
+        GROUP BY sv.id
+      ) sub
+      `,
+      [anio, ...resumenFiltros.values, TOPE_DIAS_ANUAL],
+    );
+    const conVacaciones = resumenR.rows[0].con_vacaciones;
+    const enTope = resumenR.rows[0].en_tope;
+
+    const listaFiltros = construirFiltros(req, 2);
     const { rows } = await pool.query(
       `
       SELECT
@@ -88,14 +143,24 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
       LEFT JOIN core.cronograma_vacaciones_bloque b
         ON b.servidor_id = sv.id AND b.anio = $1
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
-      ${filtros}
+      ${listaFiltros.sql}
       GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre
       ORDER BY sv.nombres ASC
+      LIMIT $${listaFiltros.siguiente} OFFSET $${listaFiltros.siguiente + 1}
       `,
-      values,
+      [anio, ...listaFiltros.values, limit, offset],
     );
 
-    return res.json({ anio, tope_dias_anual: TOPE_DIAS_ANUAL, data: rows });
+    return res.json({
+      anio,
+      tope_dias_anual: TOPE_DIAS_ANUAL,
+      data: rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      resumen: { con_vacaciones: conVacaciones, en_tope: enTope },
+    });
   } catch (err) {
     console.error("Error obteniendo cronograma de vacaciones:", err);
     return res
