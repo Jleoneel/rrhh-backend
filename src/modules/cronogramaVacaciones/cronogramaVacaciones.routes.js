@@ -52,13 +52,26 @@ async function puedeGestionarServidor(req, servidorId) {
 // UATH/admin) con el total de días ya planificados ese año.
 router.get("/", requireAuth, requireFirmante, async (req, res) => {
   const anio = parseInt(req.query.anio) || new Date().getFullYear();
+  const { unidad_organica_id, search } = req.query;
   try {
     const accesoTotal = tieneAccesoTotal(req);
     const values = [anio];
-    let filtroUnidad = "";
+    let i = 2;
+    let filtros = "";
     if (!accesoTotal) {
-      filtroUnidad = `AND (u.jefe_id = $2 OR u.jefe_superior_id = $2)`;
+      filtros += ` AND (u.jefe_id = $${i} OR u.jefe_superior_id = $${i})`;
       values.push(req.user.firmante_id);
+      i++;
+    }
+    if (unidad_organica_id) {
+      filtros += ` AND u.id = $${i}`;
+      values.push(unidad_organica_id);
+      i++;
+    }
+    if (search) {
+      filtros += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
+      values.push(`%${search}%`);
+      i++;
     }
 
     const { rows } = await pool.query(
@@ -75,7 +88,7 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
       LEFT JOIN core.cronograma_vacaciones_bloque b
         ON b.servidor_id = sv.id AND b.anio = $1
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
-      ${filtroUnidad}
+      ${filtros}
       GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre
       ORDER BY sv.nombres ASC
       `,
@@ -88,6 +101,73 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
     return res
       .status(500)
       .json({ message: "Error obteniendo cronograma de vacaciones" });
+  }
+});
+
+// GET /api/cronograma-vacaciones/exportar?anio=2026
+// Igual que el listado, pero con el detalle de cada bloque (no solo el
+// total) — lo necesita el export a Excel para reconstruir la grilla de
+// 12 meses del formato original. Mismo scoping/filtros que el listado.
+router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
+  const anio = parseInt(req.query.anio) || new Date().getFullYear();
+  const { unidad_organica_id, search } = req.query;
+  try {
+    const accesoTotal = tieneAccesoTotal(req);
+    const values = [anio];
+    let i = 2;
+    let filtros = "";
+    if (!accesoTotal) {
+      filtros += ` AND (u.jefe_id = $${i} OR u.jefe_superior_id = $${i})`;
+      values.push(req.user.firmante_id);
+      i++;
+    }
+    if (unidad_organica_id) {
+      filtros += ` AND u.id = $${i}`;
+      values.push(unidad_organica_id);
+      i++;
+    }
+    if (search) {
+      filtros += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
+      values.push(`%${search}%`);
+      i++;
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        sv.id AS servidor_id, sv.nombres, sv.numero_identificacion AS cedula,
+        d.nombre AS denominacion,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'fecha_desde', b.fecha_desde,
+              'fecha_hasta', b.fecha_hasta,
+              'dias', b.dias
+            ) ORDER BY b.fecha_desde
+          ) FILTER (WHERE b.id IS NOT NULL),
+          '[]'
+        ) AS bloques
+      FROM core.asignacion_puesto ap
+      JOIN core.puesto p ON p.id = ap.puesto_id
+      JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+      JOIN core.servidor sv ON sv.id = ap.servidor_id
+      LEFT JOIN core.denominacion_puesto d ON d.id = p.denominacion_puesto_id
+      LEFT JOIN core.cronograma_vacaciones_bloque b
+        ON b.servidor_id = sv.id AND b.anio = $1
+      WHERE ap.estado = 'ACTIVA' AND sv.activo = true
+      ${filtros}
+      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre
+      ORDER BY sv.nombres ASC
+      `,
+      values,
+    );
+
+    return res.json({ anio, data: rows });
+  } catch (err) {
+    console.error("Error exportando cronograma de vacaciones:", err);
+    return res
+      .status(500)
+      .json({ message: "Error exportando cronograma de vacaciones" });
   }
 });
 
