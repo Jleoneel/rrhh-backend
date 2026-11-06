@@ -13,14 +13,18 @@ const router = Router();
 
 const TOPE_DIAS_ANUAL = 30;
 
-// UATH (y equivalentes: auxiliar, analista TH) y el admin ven/gestionan el
-// cronograma de TODO el personal, no solo el de su propia unidad — mismo
-// criterio que el resto del sistema (requireCargo), pero sin bloquear la
-// ruta para jefes de área normales, que sí deben entrar aquí.
+// UATH (y equivalentes: auxiliar, analista TH), el Responsable de la UATH y
+// el admin ven/gestionan el cronograma de TODO el personal, no solo el de
+// su propia unidad — mismo criterio que el resto del sistema (requireCargo),
+// pero sin bloquear la ruta para jefes de área normales, que sí deben
+// entrar aquí. RESPONSABLE_UATH se chequea aparte (explícito, no por la
+// lista de equivalentes de ASISTENTE_UATH) porque esa lista es compartida
+// con otros módulos del sistema donde Responsable NO debe heredar acceso.
 function tieneAccesoTotal(req) {
   return (
     req.user?.es_admin === true ||
-    cargoPuedeActuarComo(req.user?.cargo_id, CARGO_IDS.ASISTENTE_UATH)
+    cargoPuedeActuarComo(req.user?.cargo_id, CARGO_IDS.ASISTENTE_UATH) ||
+    req.user?.cargo_id === CARGO_IDS.RESPONSABLE_UATH
   );
 }
 
