@@ -30,8 +30,12 @@ router.get(
         TO_CHAR(vs.fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'YYYY-MM-DD') AS fecha_fin,
         vs.created_at,
-        vs.archivo_solicitante, vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath
+        vs.archivo_solicitante, vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath,
+        jf.nombre AS jefe_nombre, ge.nombre AS gerente_nombre, ua.nombre AS uath_nombre
       FROM core.vacacion_solicitud vs
+      LEFT JOIN core.firmante jf ON jf.id = vs.jefe_firmante_id
+      LEFT JOIN core.firmante ge ON ge.id = vs.gerente_id
+      LEFT JOIN core.firmante ua ON ua.id = vs.uath_id
       WHERE vs.servidor_id = $1
       ORDER BY vs.created_at DESC
     `,
