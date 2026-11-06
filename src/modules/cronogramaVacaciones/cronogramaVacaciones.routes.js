@@ -236,6 +236,54 @@ router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
   }
 });
 
+// GET /api/cronograma-vacaciones/unidades-resumen?anio=2026
+// Cuántos servidores de cada unidad ya tienen al menos un bloque
+// planificado ese año (ej. 4/5) — alimenta el filtro de unidad para que
+// se note de un vistazo a quién le falta planificar. Mismo scoping por
+// jefe que el resto del módulo.
+router.get(
+  "/unidades-resumen",
+  requireAuth,
+  requireFirmante,
+  async (req, res) => {
+    const anio = parseInt(req.query.anio) || new Date().getFullYear();
+    try {
+      const accesoTotal = tieneAccesoTotal(req);
+      const values = [anio];
+      let scoping = "";
+      if (!accesoTotal) {
+        scoping = " AND (u.jefe_id = $2 OR u.jefe_superior_id = $2)";
+        values.push(req.user.firmante_id);
+      }
+      const { rows } = await pool.query(
+        `
+        SELECT
+          u.id, u.nombre,
+          COUNT(DISTINCT sv.id)::int AS total_servidores,
+          COUNT(DISTINCT sv.id) FILTER (WHERE b.id IS NOT NULL)::int AS con_cronograma
+        FROM core.unidad_organica u
+        JOIN core.puesto p ON p.unidad_organica_id = u.id
+        JOIN core.asignacion_puesto ap ON ap.puesto_id = p.id AND ap.estado = 'ACTIVA'
+        JOIN core.servidor sv ON sv.id = ap.servidor_id AND sv.activo = true
+        LEFT JOIN core.cronograma_vacaciones_bloque b
+          ON b.servidor_id = sv.id AND b.anio = $1
+        WHERE u.activo = true
+        ${scoping}
+        GROUP BY u.id, u.nombre
+        ORDER BY u.nombre ASC
+        `,
+        values,
+      );
+      return res.json(rows);
+    } catch (err) {
+      console.error("Error obteniendo resumen de unidades:", err);
+      return res
+        .status(500)
+        .json({ message: "Error obteniendo resumen de unidades" });
+    }
+  },
+);
+
 // GET /api/cronograma-vacaciones/servidor/:servidorId?anio=2026
 // Bloques de un servidor en un año puntual.
 router.get(
