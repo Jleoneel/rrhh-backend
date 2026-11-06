@@ -57,6 +57,8 @@ router.get("/bandeja-vacaciones", requireAuth, requireFirmante, async (req, res)
 router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res) => {
   const {
     fecha,
+    fecha_desde,
+    fecha_hasta,
     estado,
     unidad_organica_id,
     search = "",
@@ -68,7 +70,11 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
   // A diferencia del reporte de permisos, aquí "todos" es el modo por
   // defecto: una solicitud de vacaciones no es algo que se revise "por
   // día" como un permiso puntual, así que solo se filtra por fecha de
-  // solicitud si el usuario explícitamente pide ver un día concreto.
+  // solicitud (no por el período de vacación, que ya se ve en la columna
+  // "Período") si el usuario explícitamente pide ver un rango de días en
+  // que se hicieron las solicitudes. `fecha` se mantiene por compatibilidad
+  // (filtro de un solo día); si viene `fecha_desde`/`fecha_hasta` se usa
+  // como rango, y si solo viene una punta se usa como día único.
   const verDia = todos === "false" || todos === "0";
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -78,10 +84,12 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
     let i = 1;
 
     if (verDia) {
-      const fechaFinal = fecha || new Date().toISOString().split("T")[0];
-      where += ` AND vs.fecha_solicitud = $${i}`;
-      values.push(fechaFinal);
-      i++;
+      const hoy = new Date().toISOString().split("T")[0];
+      const desde = fecha_desde || fecha || hoy;
+      const hasta = fecha_hasta || fecha_desde || fecha || hoy;
+      where += ` AND vs.fecha_solicitud BETWEEN $${i} AND $${i + 1}`;
+      values.push(desde, hasta);
+      i += 2;
     }
     if (estado && estado !== "TODOS") {
       where += ` AND vs.estado = $${i}`;
