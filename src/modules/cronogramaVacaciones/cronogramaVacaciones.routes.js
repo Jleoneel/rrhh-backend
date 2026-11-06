@@ -29,6 +29,16 @@ function diasEntre(fechaDesde, fechaHasta) {
   return Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
 }
 
+// new Date("YYYY-MM-DD").getFullYear() parsea la fecha como UTC medianoche
+// y la vuelve a leer en la hora LOCAL del servidor — en America/Guayaquil
+// (UTC-5) eso corre un 1 de enero a las 19:00 del 31 de diciembre anterior,
+// así que un bloque que empieza el 1 de enero quedaba guardado con el año
+// equivocado (el anterior). Se extrae el año directamente del string, sin
+// pasar por ninguna conversión de huso horario.
+function anioDeFecha(fechaStr) {
+  return parseInt(fechaStr.slice(0, 4), 10);
+}
+
 // Un jefe (inmediato o superior) solo puede gestionar el cronograma de
 // servidores cuya unidad orgánica ACTIVA es la suya — mismo criterio de
 // pertenencia que ya usa el resto del sistema (jefe_id / jefe_superior_id).
@@ -338,7 +348,7 @@ router.post("/", requireAuth, requireFirmante, async (req, res) => {
       .json({ message: "La fecha hasta no puede ser anterior a la fecha desde" });
   }
 
-  const anio = new Date(fecha_desde).getFullYear();
+  const anio = anioDeFecha(fecha_desde);
   const dias = diasEntre(fecha_desde, fecha_hasta);
 
   try {
@@ -431,7 +441,7 @@ router.put("/:id", requireAuth, requireFirmante, async (req, res) => {
       });
     }
 
-    const nuevoAnio = new Date(fecha_desde).getFullYear();
+    const nuevoAnio = anioDeFecha(fecha_desde);
     const dias = diasEntre(fecha_desde, fecha_hasta);
 
     const existentes = await pool.query(
