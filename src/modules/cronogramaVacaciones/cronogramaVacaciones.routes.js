@@ -444,6 +444,13 @@ router.delete("/:id", requireAuth, requireFirmante, async (req, res) => {
         message: "No autorizado para eliminar las vacaciones de este servidor",
       });
     }
+    // La notificación "tienes vacaciones programadas" pierde sentido si el
+    // bloque se elimina, y además bloquea el DELETE por la FK que agregamos
+    // en notificacion_permiso.cronograma_bloque_id.
+    await pool.query(
+      `DELETE FROM core.notificacion_permiso WHERE cronograma_bloque_id = $1`,
+      [id],
+    );
     await pool.query(
       `DELETE FROM core.cronograma_vacaciones_bloque WHERE id = $1`,
       [id],
