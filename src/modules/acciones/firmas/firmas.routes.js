@@ -17,6 +17,10 @@ import { notifyCargoId, notifyServidorId } from "../../../shared/utils/sseManage
 import { cargoIdsEquivalentes } from "../../../shared/constants/cargos.js";
 import { resolverServidorPropio } from "../../../shared/utils/resolverServidorPropio.js";
 import { notificarRecepcionPendiente } from "../../../shared/utils/notificarRecepcion.js";
+import {
+  obtenerCodigoRegimen,
+  firmaEsObligatoria,
+} from "../../../shared/utils/regimenLaboral.js";
 
 const router = Router();
 router.get("/acciones/:accionId", requireAuth, listarFirmasAccion);
@@ -101,9 +105,16 @@ router.get("/mi-certificado", requireAuth, async (req, res) => {
       `SELECT p12_path, p12_activo FROM ${tabla} WHERE id = $1`,
       [id],
     );
+    // El régimen laboral (LOSEP/Servicio Civil Público obligatorio, el
+    // resto opcional) vive en el puesto del SERVIDOR, no del firmante —
+    // resolverServidorPropio cruza por cédula cuando quien consulta es un
+    // firmante. Mismo criterio que usan las rutas de solicitar vacación.
+    const { servidorId } = await resolverServidorPropio(req);
+    const codigoRegimen = await obtenerCodigoRegimen(servidorId);
     return res.json({
       tiene_certificado: !!rows[0]?.p12_path,
       p12_activo: rows[0]?.p12_activo || false,
+      firma_obligatoria: firmaEsObligatoria(codigoRegimen),
     });
   } catch (err) {
     console.error("Error obteniendo certificado:", err);

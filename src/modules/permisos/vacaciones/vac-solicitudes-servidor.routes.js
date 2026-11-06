@@ -10,6 +10,11 @@ import { enviarCorreo } from "../../../shared/utils/email.service.js";
 import { firmarPdfConP12 } from "../../../shared/utils/firmarPdf.service.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 import { guardarPdfFirmado } from "./vac-firmas.routes.js";
+import {
+  obtenerCodigoRegimen,
+  firmaEsObligatoria,
+  MENSAJE_FIRMA_OBLIGATORIA,
+} from "../../../shared/utils/regimenLaboral.js";
 
 const router = Router();
 
@@ -78,10 +83,17 @@ router.post(
       return res
         .status(400)
         .json({ message: "La fecha fin debe ser posterior a la fecha inicio" });
-    // Firmar electrónicamente es opcional: el servidor decide si quiere
-    // firmar con su P12 (manda password) o enviar sin firmar, para que la
-    // firmen los jefes en la cadena normal (igual que si no tuviera
-    // certificado registrado).
+    // Firmar electrónicamente es opcional para la mayoría — el servidor
+    // decide si firma con su P12 (manda password) o envía sin firmar, para
+    // que la firmen los jefes en la cadena normal — EXCEPTO para el
+    // régimen LOSEP/Servicio Civil Público, donde es obligatorio (ver
+    // regimenLaboral.js). El aviso en el login es solo un recordatorio;
+    // esta es la validación real que bloquea el envío.
+    const codigoRegimen = await obtenerCodigoRegimen(servidor_id);
+    if (firmaEsObligatoria(codigoRegimen) && !password) {
+      return res.status(400).json({ message: MENSAJE_FIRMA_OBLIGATORIA });
+    }
+
     let p12Info = null;
     if (password) {
       const p12R = await pool.query(

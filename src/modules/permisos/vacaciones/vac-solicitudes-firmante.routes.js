@@ -10,6 +10,12 @@ import { enviarCorreo } from "../../../shared/utils/email.service.js";
 import { firmarPdfConP12 } from "../../../shared/utils/firmarPdf.service.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 import { guardarPdfFirmado } from "./vac-firmas.routes.js";
+import { resolverServidorPropio } from "../../../shared/utils/resolverServidorPropio.js";
+import {
+  obtenerCodigoRegimen,
+  firmaEsObligatoria,
+  MENSAJE_FIRMA_OBLIGATORIA,
+} from "../../../shared/utils/regimenLaboral.js";
 
 const router = Router();
 
@@ -79,9 +85,20 @@ router.post(
         .status(400)
         .json({ message: "La fecha fin debe ser posterior a la fecha inicio" });
 
-    // Firmar electrónicamente es opcional: el firmante decide si firma con
-    // su propio P12 (manda password) o envía sin firmar, igual que en
-    // vac-solicitudes-servidor.routes.js.
+    // Firmar electrónicamente es opcional para la mayoría — el firmante
+    // decide si firma con su propio P12 (manda password) o envía sin
+    // firmar, igual que en vac-solicitudes-servidor.routes.js — EXCEPTO
+    // para el régimen LOSEP/Servicio Civil Público, donde es obligatorio.
+    // El régimen se determina por el servidor con la misma cédula (un
+    // firmante no tiene puesto propio); si no hay cruce (ej. una cuenta
+    // admin sin servidor asociado), no se puede determinar y queda
+    // opcional, igual que antes.
+    const { servidorId: servidorPropioId } = await resolverServidorPropio(req);
+    const codigoRegimen = await obtenerCodigoRegimen(servidorPropioId);
+    if (firmaEsObligatoria(codigoRegimen) && !password) {
+      return res.status(400).json({ message: MENSAJE_FIRMA_OBLIGATORIA });
+    }
+
     let p12Info = null;
     if (password) {
       const p12R = await pool.query(
