@@ -81,7 +81,7 @@ router.get("/reporte", requireAuth, requireFirmante, async (req, res) => {
       `
       SELECT
         ps.id,
-        ps.fecha,
+        TO_CHAR(ps.fecha, 'YYYY-MM-DD') AS fecha,
         ps.hora_salida,
         ps.hora_regreso,
         ps.horas_solicitadas,
