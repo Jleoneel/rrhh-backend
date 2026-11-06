@@ -217,4 +217,39 @@ router.get(
   },
 );
 
+// GET notificaciones de cronograma de vacaciones (servidor) — bloques que
+// un jefe le planificó y todavía no leyó/solicitó.
+router.get(
+  "/cronograma-servidor",
+  requireAuth,
+  requireServidor,
+  async (req, res) => {
+    const { servidor_id } = req.user;
+    try {
+      const { rows } = await pool.query(
+        `
+      SELECT
+        np.id, np.cronograma_bloque_id, np.tipo, np.leida,
+        TO_CHAR(np.creada_en, 'YYYY-MM-DD HH24:MI:SS') AS creada_en,
+        cb.anio,
+        TO_CHAR(cb.fecha_desde, 'YYYY-MM-DD') AS fecha_desde,
+        TO_CHAR(cb.fecha_hasta, 'YYYY-MM-DD') AS fecha_hasta,
+        cb.dias
+      FROM core.notificacion_permiso np
+      JOIN core.cronograma_vacaciones_bloque cb ON cb.id = np.cronograma_bloque_id
+      WHERE np.servidor_id = $1
+        AND np.cronograma_bloque_id IS NOT NULL
+        AND np.leida = false
+      ORDER BY np.creada_en DESC
+    `,
+        [servidor_id],
+      );
+      return res.json(rows);
+    } catch (err) {
+      console.error("Error en notificaciones-permiso:", err);
+      return res.status(500).json({ message: "Error" });
+    }
+  },
+);
+
 export default router;

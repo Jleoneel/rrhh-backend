@@ -333,6 +333,15 @@ router.post("/", requireAuth, requireFirmante, async (req, res) => {
       [servidor_id, anio, fecha_desde, fecha_hasta, dias, req.user.firmante_id],
     );
 
+    // Avisa al servidor dentro del sistema (campana/toast ya existentes,
+    // sin SSE) para que pueda solicitar estas vacaciones con un clic. Solo
+    // al crear el bloque, no en cada edición, para no generar spam.
+    await pool.query(
+      `INSERT INTO core.notificacion_permiso (servidor_id, tipo, cronograma_bloque_id)
+       VALUES ($1, 'CRONOGRAMA_PROGRAMADA', $2)`,
+      [servidor_id, rows[0].id],
+    );
+
     return res.status(201).json(rows[0]);
   } catch (err) {
     console.error("Error creando bloque de vacaciones:", err);
