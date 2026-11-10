@@ -2,6 +2,10 @@ import path from "path";
 import fs from "fs";
 import { pool } from "../../../db.js";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import {
+  cargoPuedeActuarComo,
+  CARGO_IDS,
+} from "../../../shared/constants/cargos.js";
 
 const limpiar = (texto = "") => {
   if (!texto) return "";
@@ -267,7 +271,10 @@ export const generarPdfVacacion = async (req, res) => {
 
     // Verificar que quien pide el PDF es el servidor dueño de la
     // solicitud, o un firmante (jefe/gerente/UATH que participa en la
-    // cadena de aprobación).
+    // cadena de aprobación) o admin — el "else if" para FIRMANTE nunca se
+    // había escrito, así que cualquier jefe de cualquier área podía
+    // descargar vacaciones de empleados de otras áreas con solo cambiar
+    // el id.
     if (req.user.tipo_usuario === "SERVIDOR") {
       const propia = await pool.query(
         `SELECT 1 FROM core.vacacion_solicitud WHERE id = $1 AND servidor_id = $2`,
@@ -276,6 +283,27 @@ export const generarPdfVacacion = async (req, res) => {
       if (!propia.rows.length) {
         return res.status(403).json({ message: "No autorizado" });
       }
+    } else if (req.user.tipo_usuario === "FIRMANTE") {
+      // UATH (y equivalentes) y admin ven cualquier vacación, igual que en
+      // el resto del sistema (ver tieneAccesoTotal de
+      // cronogramaVacaciones.routes.js) — un jefe/gerente normal solo ve
+      // las solicitudes donde de verdad participa en la cadena.
+      const accesoTotal =
+        req.user.es_admin === true ||
+        cargoPuedeActuarComo(req.user.cargo_id, CARGO_IDS.ASISTENTE_UATH) ||
+        req.user.cargo_id === CARGO_IDS.RESPONSABLE_UATH;
+      if (!accesoTotal) {
+        const participa = await pool.query(
+          `SELECT 1 FROM core.vacacion_solicitud
+           WHERE id = $1 AND (jefe_firmante_id = $2 OR gerente_id = $2 OR uath_id = $2)`,
+          [id, req.user.firmante_id],
+        );
+        if (!participa.rows.length) {
+          return res.status(403).json({ message: "No autorizado" });
+        }
+      }
+    } else {
+      return res.status(403).json({ message: "No autorizado" });
     }
 
     const pdfBuffer = await _generarPdfBytes(id);

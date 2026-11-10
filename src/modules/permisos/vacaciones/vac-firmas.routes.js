@@ -13,6 +13,10 @@ import { generarPdfVacacionBuffer } from "../vacaciones/vacacionesPdf.controller
 import path from "path";
 import fs from "fs";
 import { enviarCorreo } from "../../../shared/utils/email.service.js";
+import {
+  cargoPuedeActuarComo,
+  CARGO_IDS,
+} from "../../../shared/constants/cargos.js";
 
 const router = Router();
 
@@ -58,36 +62,58 @@ router.post(
         .status(400)
         .json({ message: "Contraseña del token requerida" });
 
+    // Todo el flujo (lectura con bloqueo de fila, firma del PDF, descuento
+    // de saldo y cambio de estado) corre en UNA transacción: antes cada
+    // paso era un pool.query suelto, así que un doble clic o una red lenta
+    // podía firmar y descontar saldo dos veces para una sola aprobación
+    // real. El SELECT ... FOR UPDATE bloquea la fila desde el principio,
+    // así que una segunda petición concurrente para la misma solicitud
+    // queda esperando hasta el COMMIT/ROLLBACK de la primera y, al
+    // reanudar, ve el estado ya actualizado (el WHERE estado=... del
+    // UPDATE final es una segunda red de seguridad, no la única).
+    const client = await pool.connect();
+    let solicitud, notificarId;
     try {
-      const { rows } = await pool.query(
+      await client.query("BEGIN");
+
+      const { rows } = await client.query(
         `
       SELECT vs.*, f.nombre AS jefe_nombre, c.nombre AS jefe_cargo
       FROM core.vacacion_solicitud vs
       JOIN core.firmante f ON f.id = vs.jefe_firmante_id
       JOIN core.cargo c ON c.id = f.cargo_id
       WHERE vs.id = $1
+      FOR UPDATE OF vs
     `,
         [id],
       );
 
-      if (!rows.length)
+      if (!rows.length) {
+        await client.query("ROLLBACK");
         return res.status(404).json({ message: "Solicitud no encontrada" });
-      const solicitud = rows[0];
+      }
+      solicitud = rows[0];
 
-      if (solicitud.jefe_firmante_id !== firmante_id)
+      if (solicitud.jefe_firmante_id !== firmante_id) {
+        await client.query("ROLLBACK");
         return res.status(403).json({ message: "No autorizado" });
-      if (solicitud.estado !== "PENDIENTE_JEFE")
+      }
+      if (solicitud.estado !== "PENDIENTE_JEFE") {
+        await client.query("ROLLBACK");
         return res
           .status(409)
           .json({ message: "Esta solicitud no está pendiente de jefe" });
+      }
 
       // Verificar que tiene p12
       const p12Path = await obtenerP12(firmante_id);
-      if (!p12Path)
+      if (!p12Path) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
           message:
             "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12",
         });
+      }
 
       const p12FullPath = path.resolve(
         process.env.UPLOADS_DIR || "uploads",
@@ -120,6 +146,7 @@ router.post(
           posicion: "jefe",
         });
       } catch (err) {
+        await client.query("ROLLBACK");
         if (
           err.message?.includes("password") ||
           err.message?.includes("passphrase")
@@ -140,7 +167,7 @@ router.post(
         : "PENDIENTE_UATH";
       let uath_id = null;
       if (!solicitud.gerente_id) {
-        const uathR = await pool.query(`
+        const uathR = await client.query(`
         SELECT f.id FROM core.firmante f JOIN core.cargo c ON c.id = f.cargo_id
         WHERE c.nombre = 'RESPONSABLE DE LA UATH' AND f.activo = true LIMIT 1
       `);
@@ -148,80 +175,103 @@ router.post(
       }
 
       const horas = parseFloat(solicitud.dias_solicitados) * 8;
-      await pool.query(
+      await client.query(
         `UPDATE core.saldo_permiso SET horas_usadas = horas_usadas + $1, updated_at = NOW() WHERE servidor_id = $2`,
         [horas, solicitud.servidor_id],
       );
-      await pool.query(
+      await client.query(
         `INSERT INTO core.permiso_movimiento (servidor_id, horas, tipo, descripcion, creado_por) VALUES ($1, $2, 'DESCUENTO', 'Vacaciones aprobadas por jefe inmediato', $3)`,
         [solicitud.servidor_id, horas, firmante_id],
       );
 
-      await pool.query(
+      const updateR = await client.query(
         `
       UPDATE core.vacacion_solicitud
       SET estado = $1, fecha_respuesta_jefe = NOW(), uath_id = COALESCE($2, uath_id), archivo_jefe = $3
-      WHERE id = $4
+      WHERE id = $4 AND estado = 'PENDIENTE_JEFE'
     `,
         [nuevoEstado, uath_id, archivoPath, id],
       );
+      if (updateR.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Esta solicitud ya fue procesada" });
+      }
 
-      const notificarId = solicitud.gerente_id || uath_id;
+      notificarId = solicitud.gerente_id || uath_id;
       if (notificarId) {
-        await pool.query(
+        await client.query(
           `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, firmante_id, tipo) VALUES ($1, $2, 'NUEVA_SOLICITUD')`,
           [id, notificarId],
         );
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Error firmando solicitud:", err);
+      return res.status(500).json({ message: "Error firmando solicitud" });
+    } finally {
+      client.release();
+    }
+
+    // Efectos secundarios NO críticos (push SSE + correo): la aprobación
+    // YA quedó guardada (COMMIT exitoso arriba); si esto falla, se loguea
+    // pero no se reporta como error al firmante ni se reintenta el
+    // descuento de saldo.
+    if (notificarId) {
+      try {
         notifyCargoId(`permiso-firmante-${notificarId}`, {
           tipo: "NUEVA_SOLICITUD",
           vacacion_id: id,
           mensaje: "Solicitud de vacaciones pendiente de tu aprobación",
           es_vacacion: true,
         });
+
+        const notificarR = await pool.query(
+          `SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1`,
+          [notificarId],
+        );
+        const svR = await pool.query(
+          `
+    SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
+    FROM core.servidor sv
+    LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+    LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+    LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+    WHERE sv.id = $1
+  `,
+          [solicitud.servidor_id],
+        );
+
+        if (notificarR.rows[0]?.email) {
+          await enviarCorreo(
+            notificarR.rows[0].email,
+            "nuevaSolicitudVacacion",
+            {
+              jefe_nombre: notificarR.rows[0].nombre,
+              servidor_nombre: svR.rows[0]?.nombres || "",
+              cedula: svR.rows[0]?.numero_identificacion || "",
+              unidad: svR.rows[0]?.unidad_organica || "",
+              fecha_inicio: solicitud.fecha_inicio,
+              fecha_fin: solicitud.fecha_fin,
+              dias: solicitud.dias_solicitados,
+              tipo: solicitud.tipo,
+            },
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Error notificando al siguiente firmante (no crítico, la firma ya se guardó):",
+          err,
+        );
       }
-
-      // ← Correo al siguiente firmante
-      const notificarR = await pool.query(
-        `
-  SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1
-`,
-        [notificarId],
-      );
-
-      const svR = await pool.query(
-        `
-  SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
-  FROM core.servidor sv
-  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
-  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
-  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
-  WHERE sv.id = $1
-`,
-        [solicitud.servidor_id],
-      );
-
-      if (notificarR.rows[0]?.email) {
-        await enviarCorreo(notificarR.rows[0].email, "nuevaSolicitudVacacion", {
-          jefe_nombre: notificarR.rows[0].nombre,
-          servidor_nombre: svR.rows[0]?.nombres || "",
-          cedula: svR.rows[0]?.numero_identificacion || "",
-          unidad: svR.rows[0]?.unidad_organica || "",
-          fecha_inicio: solicitud.fecha_inicio,
-          fecha_fin: solicitud.fecha_fin,
-          dias: solicitud.dias_solicitados,
-          tipo: solicitud.tipo,
-        });
-      }
-
-      return res.json({
-        message: "Solicitud firmada y enviada al siguiente paso",
-      });
-    } catch (err) {
-      console.error("Error firmando solicitud:", err);
-      return res
-        .status(500)
-        .json({ message: "Error firmando solicitud" });
     }
+
+    return res.json({
+      message: "Solicitud firmada y enviada al siguiente paso",
+    });
   },
 );
 
@@ -240,40 +290,57 @@ router.post(
         .status(400)
         .json({ message: "Contraseña del token requerida" });
 
+    // Mismo motivo que confirmar-firma-jefe: todo en una transacción con
+    // FOR UPDATE, para que un doble clic no firme/notifique dos veces.
+    const client = await pool.connect();
+    let solicitud, uath_id;
     try {
-      const { rows } = await pool.query(
+      await client.query("BEGIN");
+
+      const { rows } = await client.query(
         `
       SELECT vs.*, f.nombre AS gerente_nombre, c.nombre AS gerente_cargo
       FROM core.vacacion_solicitud vs
       JOIN core.firmante f ON f.id = vs.gerente_id
       JOIN core.cargo c ON c.id = f.cargo_id
       WHERE vs.id = $1
+      FOR UPDATE OF vs
     `,
         [id],
       );
 
-      if (!rows.length)
+      if (!rows.length) {
+        await client.query("ROLLBACK");
         return res.status(404).json({ message: "Solicitud no encontrada" });
-      const solicitud = rows[0];
+      }
+      solicitud = rows[0];
 
-      if (solicitud.jefe_firmante_id === firmante_id)
+      if (solicitud.jefe_firmante_id === firmante_id) {
+        await client.query("ROLLBACK");
         return res.status(403).json({
           message:
             "No puedes aprobar tu propia solicitud en dos pasos del flujo",
         });
-      if (solicitud.gerente_id !== firmante_id)
+      }
+      if (solicitud.gerente_id !== firmante_id) {
+        await client.query("ROLLBACK");
         return res.status(403).json({ message: "No autorizado" });
-      if (solicitud.estado !== "PENDIENTE_GERENTE")
+      }
+      if (solicitud.estado !== "PENDIENTE_GERENTE") {
+        await client.query("ROLLBACK");
         return res.status(409).json({
           message: "Esta solicitud no está pendiente de jefe superior",
         });
+      }
 
       const p12Path = await obtenerP12(firmante_id);
-      if (!p12Path)
+      if (!p12Path) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
           message:
             "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12",
         });
+      }
 
       const p12FullPath = path.resolve(
         process.env.UPLOADS_DIR || "uploads",
@@ -303,6 +370,7 @@ router.post(
           posicion: "superior",
         });
       } catch (err) {
+        await client.query("ROLLBACK");
         if (
           err.message?.includes("password") ||
           err.message?.includes("passphrase")
@@ -316,73 +384,94 @@ router.post(
 
       const archivoPath = guardarPdfFirmado(signedPdf, id, "superior");
 
-      const uathR = await pool.query(`
+      const uathR = await client.query(`
       SELECT f.id FROM core.firmante f JOIN core.cargo c ON c.id = f.cargo_id
       WHERE c.nombre = 'RESPONSABLE DE LA UATH' AND f.activo = true LIMIT 1
     `);
-      const uath_id = uathR.rows[0]?.id || null;
+      uath_id = uathR.rows[0]?.id || null;
 
-      await pool.query(
+      const updateR = await client.query(
         `
       UPDATE core.vacacion_solicitud
       SET estado = 'PENDIENTE_UATH', fecha_respuesta_gerente = NOW(), uath_id = $1, archivo_superior = $2
-      WHERE id = $3
+      WHERE id = $3 AND estado = 'PENDIENTE_GERENTE'
     `,
         [uath_id, archivoPath, id],
       );
+      if (updateR.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ message: "Esta solicitud ya fue procesada" });
+      }
 
       if (uath_id) {
-        await pool.query(
+        await client.query(
           `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, firmante_id, tipo) VALUES ($1, $2, 'NUEVA_SOLICITUD')`,
           [id, uath_id],
         );
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Error firmando solicitud:", err);
+      return res.status(500).json({ message: "Error firmando solicitud" });
+    } finally {
+      client.release();
+    }
+
+    // Efectos secundarios NO críticos — ver nota en confirmar-firma-jefe.
+    if (uath_id) {
+      try {
         notifyCargoId(`permiso-firmante-${uath_id}`, {
           tipo: "NUEVA_SOLICITUD",
           vacacion_id: id,
           mensaje: "Solicitud de vacaciones pendiente de certificación UATH",
           es_vacacion: true,
         });
+
+        const uathEmailR = await pool.query(
+          `SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1`,
+          [uath_id],
+        );
+        const svR2 = await pool.query(
+          `
+    SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
+    FROM core.servidor sv
+    LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+    LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+    LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+    WHERE sv.id = $1
+  `,
+          [solicitud.servidor_id],
+        );
+
+        if (uathEmailR.rows[0]?.email) {
+          await enviarCorreo(
+            uathEmailR.rows[0].email,
+            "nuevaSolicitudVacacion",
+            {
+              jefe_nombre: uathEmailR.rows[0].nombre,
+              servidor_nombre: svR2.rows[0]?.nombres || "",
+              cedula: svR2.rows[0]?.numero_identificacion || "",
+              unidad: svR2.rows[0]?.unidad_organica || "",
+              fecha_inicio: solicitud.fecha_inicio,
+              fecha_fin: solicitud.fecha_fin,
+              dias: solicitud.dias_solicitados,
+              tipo: solicitud.tipo,
+            },
+          );
+        }
+      } catch (err) {
+        console.error(
+          "Error notificando a UATH (no crítico, la firma ya se guardó):",
+          err,
+        );
       }
-      // ← Correo a UATH
-      const uathEmailR = await pool.query(
-        `
-  SELECT f.nombre, f.email FROM core.firmante f WHERE f.id = $1
-`,
-        [uath_id],
-      );
-
-      const svR2 = await pool.query(
-        `
-  SELECT sv.nombres, sv.numero_identificacion, u.nombre AS unidad_organica
-  FROM core.servidor sv
-  LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
-  LEFT JOIN core.puesto p ON p.id = ap.puesto_id
-  LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
-  WHERE sv.id = $1
-`,
-        [solicitud.servidor_id],
-      );
-
-      if (uathEmailR.rows[0]?.email) {
-        await enviarCorreo(uathEmailR.rows[0].email, "nuevaSolicitudVacacion", {
-          jefe_nombre: uathEmailR.rows[0].nombre,
-          servidor_nombre: svR2.rows[0]?.nombres || "",
-          cedula: svR2.rows[0]?.numero_identificacion || "",
-          unidad: svR2.rows[0]?.unidad_organica || "",
-          fecha_inicio: solicitud.fecha_inicio,
-          fecha_fin: solicitud.fecha_fin,
-          dias: solicitud.dias_solicitados,
-          tipo: solicitud.tipo,
-        });
-      }
-
-      return res.json({ message: "Solicitud firmada y enviada a UATH" });
-    } catch (err) {
-      console.error("Error firmando solicitud:", err);
-      return res
-        .status(500)
-        .json({ message: "Error firmando solicitud" });
     }
+
+    return res.json({ message: "Solicitud firmada y enviada a UATH" });
   },
 );
 
@@ -399,29 +488,46 @@ router.post(
     if (!password)
       return res.status(400).json({ message: "Contraseña del token requerida" });
 
+    // Mismo motivo que los dos endpoints anteriores: transacción + FOR
+    // UPDATE para que un doble clic no certifique/apruebe dos veces.
+    const client = await pool.connect();
+    let solicitud, firmanteVinculado;
     try {
-      const { rows } = await pool.query(`
+      await client.query("BEGIN");
+
+      const { rows } = await client.query(`
         SELECT vs.*, f.nombre AS uath_nombre, c.nombre AS uath_cargo
         FROM core.vacacion_solicitud vs
         JOIN core.firmante f ON f.id = vs.uath_id
         JOIN core.cargo c ON c.id = f.cargo_id
         WHERE vs.id = $1
+        FOR UPDATE OF vs
       `, [id]);
 
-      if (!rows.length)
+      if (!rows.length) {
+        await client.query("ROLLBACK");
         return res.status(404).json({ message: "Solicitud no encontrada" });
-      const solicitud = rows[0];
+      }
+      solicitud = rows[0];
 
-      if (solicitud.jefe_firmante_id === firmante_id || solicitud.gerente_id === firmante_id)
+      if (solicitud.jefe_firmante_id === firmante_id || solicitud.gerente_id === firmante_id) {
+        await client.query("ROLLBACK");
         return res.status(403).json({ message: "No puedes certificar una solicitud que ya aprobaste en pasos anteriores" });
-      if (solicitud.uath_id !== firmante_id)
+      }
+      if (solicitud.uath_id !== firmante_id) {
+        await client.query("ROLLBACK");
         return res.status(403).json({ message: "No autorizado" });
-      if (solicitud.estado !== "PENDIENTE_UATH")
+      }
+      if (solicitud.estado !== "PENDIENTE_UATH") {
+        await client.query("ROLLBACK");
         return res.status(409).json({ message: "Esta solicitud no está pendiente de UATH" });
+      }
 
       const p12Path = await obtenerP12(firmante_id);
-      if (!p12Path)
+      if (!p12Path) {
+        await client.query("ROLLBACK");
         return res.status(400).json({ message: "No tienes un certificado digital registrado. Ve a Configuración > Mi Certificado para subir tu .p12" });
+      }
 
       const p12FullPath = path.resolve(
         process.env.UPLOADS_DIR || "uploads",
@@ -455,46 +561,63 @@ router.post(
           posicion: "uath",
         });
       } catch (err) {
+        await client.query("ROLLBACK");
         if (err.message?.includes("password") || err.message?.includes("passphrase"))
           return res.status(400).json({ message: "Contraseña del token incorrecta" });
         throw err;
       }
 
-      // ← LUEGO actualizar estado a APROBADO (solo si la firma fue exitosa)
-      await pool.query(`
-        UPDATE core.vacacion_solicitud
-        SET estado = 'APROBADO', fecha_respuesta_uath = NOW(), uath_id = $1
-        WHERE id = $2
-      `, [firmante_id, id]);
-
       const archivoPath = guardarPdfFirmado(signedPdf, id, "uath");
 
-      await pool.query(`
-        UPDATE core.vacacion_solicitud SET archivo_uath = $1 WHERE id = $2
-      `, [archivoPath, id]);
+      // Un solo UPDATE (antes eran dos sueltos) y condicionado al estado
+      // vigente, para que una segunda petición concurrente no vuelva a
+      // "aprobar" ni a sobrescribir el archivo.
+      const updateR = await client.query(`
+        UPDATE core.vacacion_solicitud
+        SET estado = 'APROBADO', fecha_respuesta_uath = NOW(), uath_id = $1, archivo_uath = $2
+        WHERE id = $3 AND estado = 'PENDIENTE_UATH'
+      `, [firmante_id, archivoPath, id]);
+      if (updateR.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ message: "Esta solicitud ya fue procesada" });
+      }
 
-      const firmanteVinculadoR = await pool.query(`
+      const firmanteVinculadoR = await client.query(`
         SELECT f.id AS firmante_id FROM core.firmante f
         JOIN core.servidor sv ON sv.numero_identificacion = f.numero_identificacion
         WHERE sv.id = $1 LIMIT 1
       `, [solicitud.servidor_id]);
-
-      const firmanteVinculado = firmanteVinculadoR.rows[0]?.firmante_id || null;
+      firmanteVinculado = firmanteVinculadoR.rows[0]?.firmante_id || null;
 
       if (firmanteVinculado) {
-        await pool.query(
+        await client.query(
           `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, firmante_id, tipo) VALUES ($1, $2, 'APROBADO')`,
           [id, firmanteVinculado],
         );
+      } else {
+        await client.query(
+          `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, servidor_id, tipo) VALUES ($1, $2, 'APROBADO')`,
+          [id, solicitud.servidor_id],
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Error confirmando certificación:", err);
+      return res.status(500).json({ message: "Error confirmando certificación" });
+    } finally {
+      client.release();
+    }
+
+    // Efectos secundarios NO críticos — ver nota en confirmar-firma-jefe.
+    try {
+      if (firmanteVinculado) {
         notifyCargoId(`permiso-firmante-${firmanteVinculado}`, {
           tipo: "APROBADO", vacacion_id: id,
           mensaje: "Tus vacaciones fueron aprobadas y certificadas", es_vacacion: true,
         });
       } else {
-        await pool.query(
-          `INSERT INTO core.notificacion_permiso (vacacion_solicitud_id, servidor_id, tipo) VALUES ($1, $2, 'APROBADO')`,
-          [id, solicitud.servidor_id],
-        );
         notifyCargoId(`permiso-servidor-${solicitud.servidor_id}`, {
           tipo: "APROBADO", vacacion_id: id,
           mensaje: "Tus vacaciones fueron aprobadas y certificadas", es_vacacion: true,
@@ -533,12 +656,14 @@ router.post(
           aprobado_por: solicitud.uath_nombre || "",
         });
       }
-
-      return res.json({ message: "Vacaciones certificadas correctamente" });
     } catch (err) {
-      console.error("Error confirmando certificación:", err);
-      return res.status(500).json({ message: "Error confirmando certificación" });
+      console.error(
+        "Error enviando notificaciones de certificación (no crítico, ya se guardó):",
+        err,
+      );
     }
+
+    return res.json({ message: "Vacaciones certificadas correctamente" });
   },
 );
 
@@ -566,6 +691,11 @@ router.get(
         });
 
     try {
+      // Antes cualquier FIRMANTE pasaba sin más chequeo — un jefe de
+      // Mantenimiento podía descargar vacaciones de empleados de
+      // Dirección Médica con solo cambiar el id. Ahora se exige que
+      // participe en la cadena de esta solicitud (jefe/gerente/UATH) o
+      // sea admin, igual que ya se exige para el servidor dueño.
       if (req.user.tipo_usuario === "SERVIDOR") {
         const propia = await pool.query(
           `SELECT 1 FROM core.vacacion_solicitud WHERE id = $1 AND servidor_id = $2`,
@@ -574,7 +704,25 @@ router.get(
         if (!propia.rows.length) {
           return res.status(403).json({ message: "No autorizado" });
         }
-      } else if (req.user.tipo_usuario !== "FIRMANTE") {
+      } else if (req.user.tipo_usuario === "FIRMANTE") {
+        // UATH (y equivalentes) y admin ven cualquier vacación — mismo
+        // criterio que en vacacionesPdf.controller.js y en
+        // cronogramaVacaciones.routes.js (tieneAccesoTotal).
+        const accesoTotal =
+          req.user.es_admin === true ||
+          cargoPuedeActuarComo(req.user.cargo_id, CARGO_IDS.ASISTENTE_UATH) ||
+          req.user.cargo_id === CARGO_IDS.RESPONSABLE_UATH;
+        if (!accesoTotal) {
+          const participa = await pool.query(
+            `SELECT 1 FROM core.vacacion_solicitud
+             WHERE id = $1 AND (jefe_firmante_id = $2 OR gerente_id = $2 OR uath_id = $2)`,
+            [id, req.user.firmante_id],
+          );
+          if (!participa.rows.length) {
+            return res.status(403).json({ message: "No autorizado" });
+          }
+        }
+      } else {
         return res.status(403).json({ message: "No autorizado" });
       }
 

@@ -6,6 +6,7 @@ import * as anexosCtrl from "../acciones/accionesAnexos.controller.js";
 import {
   requireAuth,
   requireAdmin,
+  requireFirmante,
 } from "../../shared/middleware/auth.middleware.js";
 import { uploadAnexo } from "../../shared/utils/upload.js";
 import { requireCargo } from "../../shared/middleware/requireCargo.middleware.js";
@@ -365,8 +366,12 @@ router.post(
   },
 );
 // GET /api/acciones
-// Lista + filtros
-router.get("/", requireAuth, async (req, res) => {
+// Lista + filtros — solo firmantes (jefes/UATH/admin): antes bastaba con
+// estar logueado, así que cualquier SERVIDOR (empleado raso) podía listar
+// las Acciones de Personal de TODO el hospital (cédulas, motivos, estado).
+// Ningún flujo de servidor usa esta ruta — "Mis Acciones de Personal" pasa
+// por /api/firmas/recepciones, que ya filtra por su propio servidor_id.
+router.get("/", requireAuth, requireFirmante, async (req, res) => {
   const { estado, tipo_accion, desde, hasta, cedula, fecha, busqueda } =
     req.query;
 
@@ -441,7 +446,9 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // GET /api/acciones/:id  (detalle completo)
-router.get("/:id", requireAuth, async (req, res) => {
+// requireAccesoAccion se declara más abajo en este archivo, pero las
+// funciones de función son hoisted — utilizable aquí sin problema.
+router.get("/:id", requireAuth, requireAccesoAccion, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -804,7 +811,7 @@ router.put(
 );
 
 // GET /api/acciones/:id/firma-pendiente
-router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
+router.get("/:id/firma-pendiente", requireAuth, requireAccesoAccion, async (req, res) => {
   const { id } = req.params;
 
   const sql = `
@@ -833,7 +840,7 @@ router.get("/:id/firma-pendiente", requireAuth, async (req, res) => {
 });
 
 // GET /api/acciones/:id/propuesta
-router.get("/:id/propuesta", requireAuth, async (req, res) => {
+router.get("/:id/propuesta", requireAuth, requireAccesoAccion, async (req, res) => {
   const { id } = req.params;
 
   const sql = `
@@ -941,11 +948,13 @@ router.put("/:id/propuesta", requireAuth, async (req, res) => {
 // admin también sea FIRMANTE: si esa relación cambia, este bypass no debe
 // depender de ella). Subir/eliminar ya estaban bien: requireCargo(
 // ASISTENTE_UATH) ya deja pasar admin igual de explícito.
-async function requireAccesoAccion(req, res, next) {
+export async function requireAccesoAccion(req, res, next) {
   if (req.user?.es_admin === true) return next();
   if (req.user?.tipo_usuario === "FIRMANTE") return next();
 
-  const { accionId } = req.params;
+  // Según la ruta donde se monte, el param llega como :accionId (rutas de
+  // anexos) o como :id (detalle, propuesta, firma-pendiente, PDF).
+  const accionId = req.params.accionId || req.params.id;
   try {
     const { rows } = await pool.query(
       `SELECT servidor_id FROM core.accion_personal WHERE id = $1`,
