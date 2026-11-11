@@ -30,6 +30,7 @@ import permisosRoutes from "./modules/permisos/permisos.routes.js"
 import { iniciarCronAcumularSaldos } from "./shared/jobs/acumularSaldos.job.js";
 import distributivoposicionalRoutes from "./modules/distributivo/distributivo-posicional.routes.js";
 import cronogramaVacacionesRoutes from "./modules/cronogramaVacaciones/cronogramaVacaciones.routes.js";
+import onboardingRoutes from "./modules/onboarding/onboarding.routes.js";
 import "./shared/jobs/purgarFirmasIntermedias.job.js";
 
 const app = express();
@@ -111,6 +112,7 @@ app.use("/api/recepcion-notificaciones", recepcionNotificacionRoutes);
 app.use("/api/permisos", permisosRoutes);
 app.use("/api/distributivo", distributivoposicionalRoutes);
 app.use("/api/cronograma-vacaciones", cronogramaVacacionesRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 
 
 const port = process.env.PORT || 3001;
