@@ -11,6 +11,7 @@ import { firmarPdfConP12 } from "../../../shared/utils/firmarPdf.service.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 import { guardarPdfFirmado } from "./vac-firmas.routes.js";
 import { resolverServidorPropio } from "../../../shared/utils/resolverServidorPropio.js";
+import { reingresarSaldoSiYaDescontado } from "../../../shared/utils/saldoVacaciones.js";
 import {
   obtenerCodigoRegimen,
   firmaEsObligatoria,
@@ -396,7 +397,8 @@ router.put(
 
       const solicitudR = await client.query(
         `
-      SELECT id, estado, servidor_id FROM core.vacacion_solicitud WHERE id = $1
+      SELECT id, estado, servidor_id, dias_solicitados, fecha_respuesta_jefe
+      FROM core.vacacion_solicitud WHERE id = $1
     `,
         [id],
       );
@@ -418,6 +420,13 @@ router.put(
           .status(409)
           .json({ message: "No se puede cancelar una solicitud ya aprobada" });
       }
+
+      // Mismo caso que en vac-solicitudes-servidor.routes.js: si el jefe
+      // ya había aprobado, ya se había descontado el saldo.
+      await reingresarSaldoSiYaDescontado(client, solicitud, {
+        creadoPor: null,
+        descripcion: `Vacación #${id} cancelada por el propio servidor tras la aprobación del jefe inmediato — se reingresan las horas ya descontadas`,
+      });
 
       await client.query(
         `DELETE FROM core.notificacion_permiso WHERE vacacion_solicitud_id = $1`,

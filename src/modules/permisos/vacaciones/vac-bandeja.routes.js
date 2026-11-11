@@ -3,6 +3,7 @@ import { pool } from "../../../db.js";
 import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 import { enviarCorreo, formatearFecha } from "../../../shared/utils/email.service.js";
+import { reingresarSaldoSiYaDescontado } from "../../../shared/utils/saldoVacaciones.js";
 
 const router = Router();
 
@@ -225,6 +226,19 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
           fecha_respuesta_gerente = CASE WHEN $4 THEN NOW() ELSE fecha_respuesta_gerente END
       WHERE id = $1
     `, [id, esJefe, observacion || null, esGerente]);
+
+    // Si el jefe inmediato ya había aprobado (negado en la etapa de
+    // gerente o UATH), ya se le había descontado el saldo a este
+    // servidor — sin esto, la vacación queda NEGADA pero las horas
+    // siguen "gastadas" para siempre, lo que hasta ahora obligaba a
+    // corregirlo a mano por base de datos. Reingresa las mismas horas
+    // dentro de esta misma transacción (no se toca si negó el propio
+    // jefe: ahí nunca se había descontado nada).
+    const etapa = esGerente ? "del jefe superior" : esUath ? "de UATH" : "";
+    await reingresarSaldoSiYaDescontado(client, solicitud, {
+      creadoPor: firmante_id,
+      descripcion: `Vacación #${id} negada en la etapa ${etapa} tras la aprobación del jefe inmediato — se reingresan las horas ya descontadas`,
+    });
 
     await client.query("COMMIT");
 
