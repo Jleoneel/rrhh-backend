@@ -11,7 +11,13 @@ import {
 
 const router = Router();
 
-const TOPE_DIAS_ANUAL = 30;
+// Tope por defecto cuando el servidor no tiene una personalización en
+// core.servidor.dias_vacacion_anual (NULL) — mismo default que ya usa
+// acumularSaldos.job.js para el cálculo de acumulación mensual. El tope
+// real del Cronograma es POR SERVIDOR (ver COALESCE(sv.dias_vacacion_anual,
+// TOPE_DIAS_ANUAL_DEFAULT) en cada query de este archivo), no un número
+// único para todo el personal.
+const TOPE_DIAS_ANUAL_DEFAULT = 30;
 
 // UATH (y equivalentes: auxiliar, analista TH), el Responsable de la UATH y
 // el admin ven/gestionan el cronograma de TODO el personal, no solo el de
@@ -59,6 +65,19 @@ async function puedeGestionarServidor(req, servidorId) {
     [servidorId, req.user.firmante_id],
   );
   return rows.length > 0;
+}
+
+// Tope real de ESTE servidor: su propia personalización
+// (core.servidor.dias_vacacion_anual) si la tiene, o el default del
+// sistema si no — mismo campo que ya usa acumularSaldos.job.js, así que
+// el límite del Cronograma por fin coincide con el que define cuántas
+// horas acumula ese servidor cada mes, en vez de un 30 fijo para todos.
+async function obtenerTopeDiasAnual(servidorId) {
+  const { rows } = await pool.query(
+    `SELECT dias_vacacion_anual FROM core.servidor WHERE id = $1`,
+    [servidorId],
+  );
+  return rows[0]?.dias_vacacion_anual ?? TOPE_DIAS_ANUAL_DEFAULT;
 }
 
 // Arma el mismo WHERE (scoping por jefe + filtros de unidad/búsqueda) con
@@ -123,9 +142,10 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
       `
       SELECT
         COUNT(*) FILTER (WHERE dias_totales > 0)::int AS con_vacaciones,
-        COUNT(*) FILTER (WHERE dias_totales >= $${resumenFiltros.siguiente})::int AS en_tope
+        COUNT(*) FILTER (WHERE dias_totales >= tope)::int AS en_tope
       FROM (
-        SELECT sv.id, COALESCE(SUM(b.dias), 0) AS dias_totales
+        SELECT sv.id, COALESCE(SUM(b.dias), 0) AS dias_totales,
+               COALESCE(sv.dias_vacacion_anual, ${TOPE_DIAS_ANUAL_DEFAULT}) AS tope
         FROM core.asignacion_puesto ap
         JOIN core.puesto p ON p.id = ap.puesto_id
         JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
@@ -134,10 +154,10 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
           ON b.servidor_id = sv.id AND b.anio = $1
         WHERE ap.estado = 'ACTIVA' AND sv.activo = true
         ${resumenFiltros.sql}
-        GROUP BY sv.id
+        GROUP BY sv.id, sv.dias_vacacion_anual
       ) sub
       `,
-      [anio, ...resumenFiltros.values, TOPE_DIAS_ANUAL],
+      [anio, ...resumenFiltros.values],
     );
     const conVacaciones = resumenR.rows[0].con_vacaciones;
     const enTope = resumenR.rows[0].en_tope;
@@ -148,7 +168,8 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
       SELECT
         sv.id AS servidor_id, sv.nombres, sv.numero_identificacion AS cedula,
         d.nombre AS denominacion, u.nombre AS unidad_organica,
-        COALESCE(SUM(b.dias), 0)::int AS dias_planificados
+        COALESCE(SUM(b.dias), 0)::int AS dias_planificados,
+        COALESCE(sv.dias_vacacion_anual, ${TOPE_DIAS_ANUAL_DEFAULT})::int AS tope_dias_anual
       FROM core.asignacion_puesto ap
       JOIN core.puesto p ON p.id = ap.puesto_id
       JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
@@ -158,7 +179,7 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
         ON b.servidor_id = sv.id AND b.anio = $1
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
       ${listaFiltros.sql}
-      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre
+      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre, sv.dias_vacacion_anual
       ORDER BY sv.nombres ASC
       LIMIT $${listaFiltros.siguiente} OFFSET $${listaFiltros.siguiente + 1}
       `,
@@ -167,7 +188,10 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
 
     return res.json({
       anio,
-      tope_dias_anual: TOPE_DIAS_ANUAL,
+      // Ya no es un único tope para todo el personal — cada fila de `data`
+      // trae el suyo (tope_dias_anual). Este queda solo como valor de
+      // referencia/fallback para el frontend (ej. encabezado genérico).
+      tope_dias_anual_default: TOPE_DIAS_ANUAL_DEFAULT,
       data: rows,
       total,
       page,
@@ -216,6 +240,7 @@ router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
       SELECT
         sv.id AS servidor_id, sv.nombres, sv.numero_identificacion AS cedula,
         d.nombre AS denominacion,
+        COALESCE(sv.dias_vacacion_anual, ${TOPE_DIAS_ANUAL_DEFAULT})::int AS tope_dias_anual,
         COALESCE(
           json_agg(
             json_build_object(
@@ -235,7 +260,7 @@ router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
         ON b.servidor_id = sv.id AND b.anio = $1
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
       ${filtros}
-      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre
+      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, sv.dias_vacacion_anual
       ORDER BY sv.nombres ASC
       `,
       values,
@@ -313,6 +338,7 @@ router.get(
           message: "No autorizado para ver el cronograma de este servidor",
         });
       }
+      const topeDiasAnual = await obtenerTopeDiasAnual(servidorId);
       const { rows } = await pool.query(
         `SELECT id, fecha_desde, fecha_hasta, dias
          FROM core.cronograma_vacaciones_bloque
@@ -323,7 +349,7 @@ router.get(
       const totalDias = rows.reduce((acc, b) => acc + b.dias, 0);
       return res.json({
         anio,
-        tope_dias_anual: TOPE_DIAS_ANUAL,
+        tope_dias_anual: topeDiasAnual,
         total_dias: totalDias,
         bloques: rows,
       });
@@ -380,10 +406,11 @@ router.post("/", requireAuth, requireFirmante, async (req, res) => {
       });
     }
 
+    const topeDiasAnual = await obtenerTopeDiasAnual(servidor_id);
     const totalActual = existentes.rows.reduce((acc, b) => acc + b.dias, 0);
-    if (totalActual + dias > TOPE_DIAS_ANUAL) {
+    if (totalActual + dias > topeDiasAnual) {
       return res.status(400).json({
-        message: `Supera el tope de ${TOPE_DIAS_ANUAL} días anuales (ya tiene ${totalActual}, este bloque son ${dias})`,
+        message: `Supera el tope de ${topeDiasAnual} días anuales de este servidor (ya tiene ${totalActual}, este bloque son ${dias})`,
       });
     }
 
@@ -466,10 +493,11 @@ router.put("/:id", requireAuth, requireFirmante, async (req, res) => {
       });
     }
 
+    const topeDiasAnual = await obtenerTopeDiasAnual(servidor_id);
     const totalActual = existentes.rows.reduce((acc, b) => acc + b.dias, 0);
-    if (totalActual + dias > TOPE_DIAS_ANUAL) {
+    if (totalActual + dias > topeDiasAnual) {
       return res.status(400).json({
-        message: `Supera el tope de ${TOPE_DIAS_ANUAL} días anuales (ya tiene ${totalActual} en otros bloques, este bloque son ${dias})`,
+        message: `Supera el tope de ${topeDiasAnual} días anuales de este servidor (ya tiene ${totalActual} en otros bloques, este bloque son ${dias})`,
       });
     }
 
