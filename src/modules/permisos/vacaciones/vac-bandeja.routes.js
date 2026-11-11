@@ -152,7 +152,8 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
         sv.numero_identificacion AS cedula,
         u.nombre AS unidad_organica,
         fj.nombre AS jefe_nombre,
-        vs.archivo_uath
+        vs.archivo_uath,
+        COALESCE(vs.observacion_jefe, vs.observacion_gerente, vs.observacion_uath) AS observacion
       FROM core.vacacion_solicitud vs
       JOIN core.servidor sv ON sv.id = vs.servidor_id
       LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
@@ -222,10 +223,12 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
       SET estado = 'NEGADO',
           observacion_jefe = CASE WHEN $2 THEN $3 ELSE observacion_jefe END,
           observacion_gerente = CASE WHEN $4 THEN $3 ELSE observacion_gerente END,
+          observacion_uath = CASE WHEN $5 THEN $3 ELSE observacion_uath END,
           fecha_respuesta_jefe = CASE WHEN $2 THEN NOW() ELSE fecha_respuesta_jefe END,
-          fecha_respuesta_gerente = CASE WHEN $4 THEN NOW() ELSE fecha_respuesta_gerente END
+          fecha_respuesta_gerente = CASE WHEN $4 THEN NOW() ELSE fecha_respuesta_gerente END,
+          fecha_respuesta_uath = CASE WHEN $5 THEN NOW() ELSE fecha_respuesta_uath END
       WHERE id = $1
-    `, [id, esJefe, observacion || null, esGerente]);
+    `, [id, esJefe, observacion || null, esGerente, esUath]);
 
     // Si el jefe inmediato ya había aprobado (negado en la etapa de
     // gerente o UATH), ya se le había descontado el saldo a este
