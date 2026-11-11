@@ -3,6 +3,7 @@ import { pool } from "../../db.js";
 import {
   requireAuth,
   requireFirmante,
+  requireServidor,
 } from "../../shared/middleware/auth.middleware.js";
 import {
   CARGO_IDS,
@@ -322,6 +323,42 @@ router.get(
     }
   },
 );
+
+// GET /api/cronograma-vacaciones/mi-cronograma?anio=2026
+// El servidor ve SUS PROPIOS bloques planificados — solo lectura, nunca
+// puede crear/editar/eliminar (eso le toca únicamente al jefe, por eso
+// este endpoint no comparte router con los de abajo, que son todos
+// requireFirmante). No necesita puedeGestionarServidor: siempre es sobre
+// su propio servidor_id, tomado del token, nunca de un parámetro.
+router.get("/mi-cronograma", requireAuth, requireServidor, async (req, res) => {
+  const { servidor_id } = req.user;
+  const anio = parseInt(req.query.anio) || new Date().getFullYear();
+  try {
+    const topeDiasAnual = await obtenerTopeDiasAnual(servidor_id);
+    const { rows } = await pool.query(
+      `SELECT id,
+              TO_CHAR(fecha_desde, 'YYYY-MM-DD') AS fecha_desde,
+              TO_CHAR(fecha_hasta, 'YYYY-MM-DD') AS fecha_hasta,
+              dias
+       FROM core.cronograma_vacaciones_bloque
+       WHERE servidor_id = $1 AND anio = $2
+       ORDER BY fecha_desde ASC`,
+      [servidor_id, anio],
+    );
+    const totalDias = rows.reduce((acc, b) => acc + b.dias, 0);
+    return res.json({
+      anio,
+      tope_dias_anual: topeDiasAnual,
+      total_dias: totalDias,
+      bloques: rows,
+    });
+  } catch (err) {
+    console.error("Error obteniendo mi cronograma:", err);
+    return res
+      .status(500)
+      .json({ message: "Error obteniendo cronograma" });
+  }
+});
 
 // GET /api/cronograma-vacaciones/servidor/:servidorId?anio=2026
 // Bloques de un servidor en un año puntual.
