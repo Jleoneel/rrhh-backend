@@ -42,6 +42,46 @@ const COLORS = {
   border: "#e5e7eb",
 };
 
+// Formatea una fecha para mostrarla en los correos — antes se interpolaba
+// el valor tal cual llegara: si venía de una columna `date` de Postgres
+// seleccionada sin TO_CHAR (ej. `solicitud.fecha_inicio` de un `SELECT
+// vs.*`), pg la entrega como objeto Date, y el template literal llama a
+// su toString() completo sin que nadie lo pida: "Wed Nov 04 2026
+// 00:00:00 GMT+0000 (Coordinated Universal Time)". Se usan los getters
+// LOCALES (no UTC) del Date: pg construye ese Date interpretando el
+// string de Postgres como fecha LOCAL del proceso que corre Node, así
+// que leerlo de vuelta con getFullYear/getMonth/getDate (locales) da
+// siempre el mismo año/mes/día sin importar en qué huso horario esté
+// configurado el servidor (confirmado en vivo: America/Guayaquil local
+// y UTC dan el mismo resultado, porque construcción y lectura usan el
+// mismo huso). Si en cambio llega un string "YYYY-MM-DD" (de un
+// formulario), se parte directo el string — nunca se vuelve a pasar por
+// `new Date(string)`, que sí interpreta como UTC y puede correrse un día
+// (mismo bug ya corregido en cronogramaVacaciones.routes.js).
+const MESES_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+// Exportada: un par de call-sites arman el string "periodo" ellos mismos
+// antes de llamar a enviarCorreo (ej. vac-bandeja.routes.js), así que
+// necesitan formatear ahí mismo, no solo dentro de las plantillas.
+export function formatearFecha(valor) {
+  if (!valor) return "";
+  let anio, mes, dia;
+  if (valor instanceof Date) {
+    anio = valor.getFullYear();
+    mes = valor.getMonth() + 1;
+    dia = valor.getDate();
+  } else {
+    [anio, mes, dia] = String(valor)
+      .slice(0, 10)
+      .split("-")
+      .map(Number);
+  }
+  if (!anio || !mes || !dia || !MESES_ES[mes - 1]) return String(valor);
+  return `${String(dia).padStart(2, "0")} de ${MESES_ES[mes - 1]} de ${anio}`;
+}
+
 //  PLANTILLAS MEJORADAS
 const plantillas = {
   nuevaSolicitudPermiso: ({
@@ -112,7 +152,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha)}</td>
               </tr>
               ${
                 horario
@@ -226,7 +266,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Período:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha_inicio} → ${fecha_fin}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha_inicio)} → ${formatearFecha(fecha_fin)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días:</td>
@@ -302,7 +342,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Período:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha_inicio} → ${fecha_fin}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha_inicio)} → ${formatearFecha(fecha_fin)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días aprobados:</td>
@@ -472,7 +512,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha)}</td>
               </tr>
               ${
                 horario
@@ -570,7 +610,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Fecha:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha)}</td>
               </tr>
               ${
                 horario
@@ -648,7 +688,7 @@ const plantillas = {
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Período:</td>
-                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${fecha_inicio} → ${fecha_fin}</td>
+                <td style="padding: 8px 0; color: ${COLORS.text}; font-weight: 500; font-size: 14px;">${formatearFecha(fecha_inicio)} → ${formatearFecha(fecha_fin)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: ${COLORS.textLight}; font-size: 13px;">Días aprobados:</td>

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { pool } from "../../../db.js";
 import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
-import { enviarCorreo } from "../../../shared/utils/email.service.js";
+import { enviarCorreo, formatearFecha } from "../../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -283,7 +283,7 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
         servidor_nombre: svEmailR.rows[0].nombres,
         tipo: solicitud.tipo === "VACACION_PROGRAMADA" ? "Vacación Programada" : "Permiso con Cargo",
         unidad: svEmailR.rows[0]?.unidad_organica || "",
-        periodo: `${solicitud.fecha_inicio} → ${solicitud.fecha_fin}`,
+        periodo: `${formatearFecha(solicitud.fecha_inicio)} → ${formatearFecha(solicitud.fecha_fin)}`,
         observacion: observacion || "",
         negado_por: firmante_nombre || "",
       });

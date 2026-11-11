@@ -5,7 +5,7 @@ import {
   requireFirmante,
 } from "../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../shared/utils/sseManager.js";
-import { enviarCorreo } from "../../shared/utils/email.service.js";
+import { enviarCorreo, formatearFecha } from "../../shared/utils/email.service.js";
 
 const router = Router();
 
@@ -209,7 +209,7 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
           servidor_nombre: svEmailR.rows[0].nombres,
           tipo: tipoPermisoR.rows[0]?.nombre || "Permiso",
           unidad: unidadPermisoR.rows[0]?.nombre || "",
-          periodo: `${solicitud.fecha} · ${horarioPermiso}`,
+          periodo: `${formatearFecha(solicitud.fecha)} · ${horarioPermiso}`,
           observacion: observacion || "",
           negado_por: firmante_nombre || "",
         });
