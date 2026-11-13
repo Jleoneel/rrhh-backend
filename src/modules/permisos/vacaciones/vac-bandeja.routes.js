@@ -8,14 +8,31 @@ import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 import { enviarCorreo, formatearFecha } from "../../../shared/utils/email.service.js";
 import { reingresarSaldoSiYaDescontado } from "../../../shared/utils/saldoVacaciones.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
+import { CARGO_IDS, cargoPuedeActuarComo } from "../../../shared/constants/cargos.js";
 
 const router = Router();
 
+// UATH (y equivalentes) y admin ven el reporte de TODO el hospital — un
+// jefe de área o gerente normal solo debe ver (y ahora descargar en bloque)
+// las solicitudes de su propia unidad. Mismo criterio que ya usa
+// cronogramaVacaciones.routes.js (tieneAccesoTotal): antes este reporte no
+// filtraba por nadie ("para todos" literal en el comentario del Sidebar),
+// así que cualquier firmante podía ver y bajar las vacaciones de cualquier
+// servidor del hospital con solo entrar a esta pantalla.
+function tieneAccesoTotal(req) {
+  return (
+    req.user?.es_admin === true ||
+    cargoPuedeActuarComo(req.user?.cargo_id, CARGO_IDS.ASISTENTE_UATH) ||
+    req.user?.cargo_id === CARGO_IDS.RESPONSABLE_UATH
+  );
+}
+
 // El mismo WHERE del reporte (filtros de fecha de solicitud/estado/unidad/
-// búsqueda), extraído para que lo use también el ZIP masivo de PDFs sin
-// duplicar esta lógica — ambos deben filtrar exactamente igual, para que
-// "descargar todos los PDF" baje los mismos que se ven en pantalla.
-function construirFiltrosReporteVacaciones(query) {
+// búsqueda + el scoping por unidad de quien consulta), extraído para que lo
+// use también el ZIP masivo de PDFs sin duplicar esta lógica — ambos deben
+// filtrar exactamente igual, para que "descargar todos los PDF" baje los
+// mismos que se ven en pantalla (ni más, ni menos).
+function construirFiltrosReporteVacaciones(query, req) {
   const { fecha, fecha_desde, fecha_hasta, estado, unidad_organica_id, search, todos } = query;
   const verDia = todos === "false" || todos === "0";
 
@@ -23,6 +40,11 @@ function construirFiltrosReporteVacaciones(query) {
   const values = [];
   let i = 1;
 
+  if (!tieneAccesoTotal(req)) {
+    where += ` AND (u.jefe_id = $${i} OR u.jefe_superior_id = $${i})`;
+    values.push(req.user.firmante_id);
+    i++;
+  }
   if (verDia) {
     const hoy = new Date().toISOString().split("T")[0];
     const desde = fecha_desde || fecha || hoy;
@@ -123,7 +145,7 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   try {
-    const { where, values } = construirFiltrosReporteVacaciones(req.query);
+    const { where, values } = construirFiltrosReporteVacaciones(req.query, req);
     let i = values.length + 1;
 
     const countResult = await pool.query(
@@ -210,7 +232,7 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
 // — se excluye, igual que no tiene botón en pantalla.
 router.get("/reporte-vacaciones/zip", requireAuth, requireFirmante, async (req, res) => {
   try {
-    const { where, values } = construirFiltrosReporteVacaciones(req.query);
+    const { where, values } = construirFiltrosReporteVacaciones(req.query, req);
 
     const { rows } = await pool.query(
       `
