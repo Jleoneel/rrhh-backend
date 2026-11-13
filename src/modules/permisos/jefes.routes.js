@@ -344,10 +344,16 @@ router.patch(
 // que ya están en PENDIENTE_GERENTE siguen su curso normal por el jefe
 // superior (ver gerente_id en vac-solicitudes-servidor.routes.js /
 // vac-solicitudes-firmante.routes.js).
+//
+// Permiso: cualquiera que pueda ver "Jefes por Unidad" puede usar este
+// botón — mismo criterio que el link en Sidebar.jsx (esAsistenteUATH ||
+// esResponsableUATH || esAdmin), no el más angosto que ya tenían
+// activar/desactivar y editar jefes en este archivo (solo ASISTENTE_UATH
+// y equivalentes), que deja afuera a RESPONSABLE_UATH.
 router.patch(
   "/unidades-organicas/:id/omitir-jefe-superior",
   requireAuth,
-  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  requireCargo([CARGO_IDS.ASISTENTE_UATH, CARGO_IDS.RESPONSABLE_UATH]),
   async (req, res) => {
     const { id } = req.params;
     const { omitir } = req.body;
