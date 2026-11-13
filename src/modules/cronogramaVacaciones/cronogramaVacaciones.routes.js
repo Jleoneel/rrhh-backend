@@ -241,6 +241,11 @@ router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
       SELECT
         sv.id AS servidor_id, sv.nombres, sv.numero_identificacion AS cedula,
         d.nombre AS denominacion,
+        u.nombre AS unidad_organica,
+        rl.nombre AS regimen_laboral,
+        eo.nombre AS grupo_ocupacional,
+        TO_CHAR(sv.fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso,
+        ROUND((COALESCE(sp.horas_totales, 0) - COALESCE(sp.horas_usadas, 0)) / 8.0, 1) AS saldo_dias,
         COALESCE(sv.dias_vacacion_anual, ${TOPE_DIAS_ANUAL_DEFAULT})::int AS tope_dias_anual,
         COALESCE(
           json_agg(
@@ -257,11 +262,16 @@ router.get("/exportar", requireAuth, requireFirmante, async (req, res) => {
       JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
       JOIN core.servidor sv ON sv.id = ap.servidor_id
       LEFT JOIN core.denominacion_puesto d ON d.id = p.denominacion_puesto_id
+      LEFT JOIN core.regimen_laboral rl ON rl.id = p.regimen_laboral_id
+      LEFT JOIN core.escala_ocupacional eo ON eo.id = p.escala_ocupacional_id
+      LEFT JOIN core.saldo_permiso sp ON sp.servidor_id = sv.id
       LEFT JOIN core.cronograma_vacaciones_bloque b
         ON b.servidor_id = sv.id AND b.anio = $1
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
       ${filtros}
-      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, sv.dias_vacacion_anual
+      GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre,
+               rl.nombre, eo.nombre, sv.fecha_ingreso, sp.horas_totales,
+               sp.horas_usadas, sv.dias_vacacion_anual
       ORDER BY sv.nombres ASC
       `,
       values,
