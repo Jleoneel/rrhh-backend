@@ -208,36 +208,51 @@ router.post(
 
       const unidadR = await client.query(
         `
-      SELECT jefe_id, jefe_superior_id, nombre FROM core.unidad_organica WHERE id = $1
+      SELECT jefe_id, jefe_superior_id, omitir_jefe_superior, nombre
+      FROM core.unidad_organica WHERE id = $1
     `,
         [unidad_organica_id],
       );
 
       const jefe_id_raw = unidadR.rows[0]?.jefe_id || null;
       const jefe_superior_id = unidadR.rows[0]?.jefe_superior_id || null;
+      const omitirJefeSuperiorPropia =
+        unidadR.rows[0]?.omitir_jefe_superior || false;
       const esPropio = jefe_id_raw === firmante_id;
       const jefe_firmante_id = esPropio ? jefe_superior_id : jefe_id_raw;
 
+      // "omitir_jefe_superior" es una disposición temporal de la unidad
+      // (no borra jefe_superior_id), así que se vuelve a consultar junto
+      // al gerente en vez de asumir que es siempre el de la unidad
+      // original — en el caso esPropio el salto depende de la unidad
+      // donde el jefe_superior_id actúa como jefe, no de la propia.
       let gerente_id_final = null;
       if (!esPropio) {
         const gerenteR = await client.query(
           `
-        SELECT jefe_superior_id AS gerente_id FROM core.unidad_organica
+        SELECT jefe_superior_id AS gerente_id, omitir_jefe_superior
+        FROM core.unidad_organica
         WHERE jefe_id = $1 LIMIT 1
       `,
           [jefe_firmante_id],
         );
-        gerente_id_final =
-          gerenteR.rows[0]?.gerente_id || jefe_superior_id || null;
+        const omitir =
+          gerenteR.rows[0]?.omitir_jefe_superior ?? omitirJefeSuperiorPropia;
+        gerente_id_final = omitir
+          ? null
+          : gerenteR.rows[0]?.gerente_id || jefe_superior_id || null;
       } else {
         const gerenteR = await client.query(
           `
-        SELECT jefe_superior_id AS gerente_id FROM core.unidad_organica
+        SELECT jefe_superior_id AS gerente_id, omitir_jefe_superior
+        FROM core.unidad_organica
         WHERE jefe_id = $1 LIMIT 1
       `,
           [jefe_superior_id],
         );
-        gerente_id_final = gerenteR.rows[0]?.gerente_id || null;
+        gerente_id_final = gerenteR.rows[0]?.omitir_jefe_superior
+          ? null
+          : gerenteR.rows[0]?.gerente_id || null;
       }
 
       const { rows } = await client.query(

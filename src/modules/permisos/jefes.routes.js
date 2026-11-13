@@ -20,6 +20,7 @@ router.get("/jefes", requireAuth, requireFirmante, async (req, res) => {
       SELECT
         u.id, u.nombre AS unidad_organica, u.origen, u.activo,
         u.unidad_padre_id, up.nombre AS unidad_padre_nombre,
+        u.omitir_jefe_superior,
         f1.id AS jefe_id, f1.nombre AS jefe_nombre,
         f2.id AS jefe_superior_id, f2.nombre AS jefe_superior_nombre
       FROM core.unidad_organica u
@@ -326,6 +327,51 @@ router.patch(
       });
     } catch (err) {
       console.error("Error actualizando la unidad:", err);
+      return res
+        .status(500)
+        .json({ message: "Error actualizando la unidad" });
+    }
+  },
+);
+
+// PATCH /api/permisos/unidades-organicas/:id/omitir-jefe-superior
+//
+// Salta TEMPORALMENTE el paso del jefe superior en el flujo de
+// aprobación de VACACIONES de esta unidad (jefe inmediato -> UATH
+// directo), sin tocar jefe_superior_id — que sigue siendo el jefe
+// superior reglamentario, listo para retomar en cuanto se desmarque.
+// Solo afecta a las solicitudes que se creen de aquí en adelante; las
+// que ya están en PENDIENTE_GERENTE siguen su curso normal por el jefe
+// superior (ver gerente_id en vac-solicitudes-servidor.routes.js /
+// vac-solicitudes-firmante.routes.js).
+router.patch(
+  "/unidades-organicas/:id/omitir-jefe-superior",
+  requireAuth,
+  requireCargo([CARGO_IDS.ASISTENTE_UATH]),
+  async (req, res) => {
+    const { id } = req.params;
+    const { omitir } = req.body;
+    if (typeof omitir !== "boolean") {
+      return res
+        .status(400)
+        .json({ message: "El campo 'omitir' debe ser booleano" });
+    }
+    try {
+      const { rows } = await pool.query(
+        `UPDATE core.unidad_organica SET omitir_jefe_superior = $1 WHERE id = $2 RETURNING id, omitir_jefe_superior`,
+        [omitir, id],
+      );
+      if (!rows.length) {
+        return res.status(404).json({ message: "Unidad no encontrada" });
+      }
+      return res.json({
+        message: omitir
+          ? "El jefe superior se omitirá temporalmente en vacaciones de esta unidad"
+          : "El jefe superior vuelve a formar parte del flujo de vacaciones de esta unidad",
+        ...rows[0],
+      });
+    } catch (err) {
+      console.error("Error actualizando omitir_jefe_superior:", err);
       return res
         .status(500)
         .json({ message: "Error actualizando la unidad" });

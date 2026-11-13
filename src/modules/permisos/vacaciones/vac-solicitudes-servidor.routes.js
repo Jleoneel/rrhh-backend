@@ -180,13 +180,21 @@ router.post(
 
       const unidadR = await client.query(
         `
-      SELECT jefe_id, jefe_superior_id, nombre FROM core.unidad_organica WHERE id = $1
+      SELECT jefe_id, jefe_superior_id, omitir_jefe_superior, nombre
+      FROM core.unidad_organica WHERE id = $1
     `,
         [unidad_organica_id],
       );
 
       const jefe_firmante_id = unidadR.rows[0]?.jefe_id || null;
-      const gerente_id = unidadR.rows[0]?.jefe_superior_id || null;
+      // Si la unidad tiene marcado "omitir jefe superior" (disposición
+      // temporal, no reglamentaria), la solicitud nace sin gerente_id y el
+      // flujo salta directo a UATH al firmar el jefe — mismo mecanismo que
+      // ya existe para unidades sin jefe superior asignado (ver
+      // confirmar-firma-jefe en vac-firmas.routes.js).
+      const gerente_id = unidadR.rows[0]?.omitir_jefe_superior
+        ? null
+        : unidadR.rows[0]?.jefe_superior_id || null;
 
       const { rows } = await client.query(
         `
