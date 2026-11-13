@@ -224,12 +224,13 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
 // Descarga de una sola vez, en un .zip, el PDF de cada solicitud que
 // cumple los MISMOS filtros que el reporte en pantalla (sin paginar, igual
 // que "Exportar Excel") — evita que el navegador tenga que disparar un
-// request por fila. Por cada solicitud se arma exactamente el mismo
-// archivo que bajaría su botón individual: el último ya firmado según la
-// etapa (ver tipoPdfParaEstado en ReporteVacaciones.jsx), o el PDF simple
-// generado al vuelo si esa etapa todavía no tiene archivo (ej. el
-// servidor no firmó su propia solicitud). NEGADO no tiene PDF que ofrecer
-// — se excluye, igual que no tiene botón en pantalla.
+// request por fila. Si el filtro dice "todos los estados", el zip trae
+// TODOS los estados, incluido NEGADO (a diferencia del botón individual
+// por fila, que no ofrece PDF para NEGADO): por cada solicitud se arma el
+// archivo ya firmado de la última etapa (jefe/superior/uath) cuando existe,
+// y si no (etapa sin firma aún, o NEGADO, que no tiene columna de archivo
+// propia) se usa el PDF simple generado al vuelo, igual que el fallback
+// del botón individual.
 router.get("/reporte-vacaciones/zip", requireAuth, requireFirmante, async (req, res) => {
   try {
     const { where, values } = construirFiltrosReporteVacaciones(req.query, req);
@@ -252,10 +253,9 @@ router.get("/reporte-vacaciones/zip", requireAuth, requireFirmante, async (req, 
       values,
     );
 
-    const conPdf = rows.filter((r) => COLUMNA_POR_ESTADO[r.estado]);
-    if (!conPdf.length) {
+    if (!rows.length) {
       return res.status(404).json({
-        message: "No hay solicitudes con PDF para los filtros aplicados",
+        message: "No hay solicitudes para los filtros aplicados",
       });
     }
 
@@ -278,11 +278,11 @@ router.get("/reporte-vacaciones/zip", requireAuth, requireFirmante, async (req, 
     });
     archive.pipe(res);
 
-    for (const sol of conPdf) {
+    for (const sol of rows) {
       const col = COLUMNA_POR_ESTADO[sol.estado];
       let buffer = null;
 
-      const archivo = sol[col];
+      const archivo = col ? sol[col] : null;
       if (archivo) {
         const filePath = path.join(uploadsBase, archivo.replace("/uploads/", ""));
         if (fs.existsSync(filePath)) {

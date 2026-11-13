@@ -36,7 +36,7 @@ const _generarPdfBytes = async (id) => {
       SELECT
         vs.id, vs.tipo, vs.dias_solicitados, vs.estado,
         vs.telefono_domicilio, vs.telefono_movil,
-        vs.observacion_jefe, vs.observacion_gerente,
+        vs.observacion_jefe, vs.observacion_gerente, vs.observacion_uath,
         TO_CHAR(vs.fecha_solicitud, 'DD/MM/YYYY') AS fecha_solicitud,
         TO_CHAR(vs.fecha_inicio, 'DD-MM-YYYY') AS fecha_inicio,
         TO_CHAR(vs.fecha_fin, 'DD-MM-YYYY') AS fecha_fin,
@@ -182,7 +182,9 @@ const _generarPdfBytes = async (id) => {
     if (negado) t("X", 216, H - 407, 9, true);
 
     // Observación de negación
-    const obs = limpiar(v.observacion_jefe || v.observacion_gerente || "");
+    const obs = limpiar(
+      v.observacion_jefe || v.observacion_gerente || v.observacion_uath || "",
+    );
     if (obs) {
       t(obs.substring(0, 50), 335, H - 384.2 + 1, 7);
       if (obs.length > 50) t(obs.substring(50, 100), 301, H - 399.7 + 1, 7);
