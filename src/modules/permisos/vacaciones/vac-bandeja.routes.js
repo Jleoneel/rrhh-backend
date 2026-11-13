@@ -1,11 +1,64 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
+import archiver from "archiver";
 import { pool } from "../../../db.js";
 import { requireAuth, requireFirmante } from "../../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../../shared/utils/sseManager.js";
 import { enviarCorreo, formatearFecha } from "../../../shared/utils/email.service.js";
 import { reingresarSaldoSiYaDescontado } from "../../../shared/utils/saldoVacaciones.js";
+import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 
 const router = Router();
+
+// El mismo WHERE del reporte (filtros de fecha de solicitud/estado/unidad/
+// búsqueda), extraído para que lo use también el ZIP masivo de PDFs sin
+// duplicar esta lógica — ambos deben filtrar exactamente igual, para que
+// "descargar todos los PDF" baje los mismos que se ven en pantalla.
+function construirFiltrosReporteVacaciones(query) {
+  const { fecha, fecha_desde, fecha_hasta, estado, unidad_organica_id, search, todos } = query;
+  const verDia = todos === "false" || todos === "0";
+
+  let where = "WHERE 1=1";
+  const values = [];
+  let i = 1;
+
+  if (verDia) {
+    const hoy = new Date().toISOString().split("T")[0];
+    const desde = fecha_desde || fecha || hoy;
+    const hasta = fecha_hasta || fecha_desde || fecha || hoy;
+    where += ` AND vs.fecha_solicitud BETWEEN $${i} AND $${i + 1}`;
+    values.push(desde, hasta);
+    i += 2;
+  }
+  if (estado && estado !== "TODOS") {
+    where += ` AND vs.estado = $${i}`;
+    values.push(estado);
+    i++;
+  }
+  if (unidad_organica_id) {
+    where += ` AND u.id = $${i}`;
+    values.push(unidad_organica_id);
+    i++;
+  }
+  if (search) {
+    where += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
+    values.push(`%${search}%`);
+    i++;
+  }
+  return { where, values };
+}
+
+// Misma regla que el botón "PDF" de cada fila en el reporte: qué archivo ya
+// firmado corresponde a la etapa actual (ver handleDescargarPdf en
+// ReporteVacaciones.jsx) — NEGADO no tiene PDF que ofrecer, así que esas
+// solicitudes se excluyen del ZIP, igual que no tienen botón en pantalla.
+const COLUMNA_POR_ESTADO = {
+  PENDIENTE_JEFE: "archivo_solicitante",
+  PENDIENTE_GERENTE: "archivo_jefe",
+  PENDIENTE_UATH: "archivo_superior",
+  APROBADO: "archivo_uath",
+};
 
 // GET /api/permisos/bandeja-vacaciones
 //
@@ -56,17 +109,7 @@ router.get("/bandeja-vacaciones", requireAuth, requireFirmante, async (req, res)
 
 // GET /api/permisos/reporte-vacaciones
 router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res) => {
-  const {
-    fecha,
-    fecha_desde,
-    fecha_hasta,
-    estado,
-    unidad_organica_id,
-    search = "",
-    todos,
-    page = 1,
-    limit = 10,
-  } = req.query;
+  const { page = 1, limit = 10 } = req.query;
 
   // A diferencia del reporte de permisos, aquí "todos" es el modo por
   // defecto: una solicitud de vacaciones no es algo que se revise "por
@@ -76,37 +119,12 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
   // que se hicieron las solicitudes. `fecha` se mantiene por compatibilidad
   // (filtro de un solo día); si viene `fecha_desde`/`fecha_hasta` se usa
   // como rango, y si solo viene una punta se usa como día único.
-  const verDia = todos === "false" || todos === "0";
+  // (ver construirFiltrosReporteVacaciones)
   const offset = (parseInt(page) - 1) * parseInt(limit);
 
   try {
-    let where = "WHERE 1=1";
-    const values = [];
-    let i = 1;
-
-    if (verDia) {
-      const hoy = new Date().toISOString().split("T")[0];
-      const desde = fecha_desde || fecha || hoy;
-      const hasta = fecha_hasta || fecha_desde || fecha || hoy;
-      where += ` AND vs.fecha_solicitud BETWEEN $${i} AND $${i + 1}`;
-      values.push(desde, hasta);
-      i += 2;
-    }
-    if (estado && estado !== "TODOS") {
-      where += ` AND vs.estado = $${i}`;
-      values.push(estado);
-      i++;
-    }
-    if (unidad_organica_id) {
-      where += ` AND u.id = $${i}`;
-      values.push(unidad_organica_id);
-      i++;
-    }
-    if (search) {
-      where += ` AND (sv.nombres ILIKE $${i} OR sv.numero_identificacion ILIKE $${i})`;
-      values.push(`%${search}%`);
-      i++;
-    }
+    const { where, values } = construirFiltrosReporteVacaciones(req.query);
+    let i = values.length + 1;
 
     const countResult = await pool.query(
       `
@@ -176,6 +194,100 @@ router.get("/reporte-vacaciones", requireAuth, requireFirmante, async (req, res)
   } catch (err) {
     console.error("Error obteniendo reporte:", err);
     return res.status(500).json({ message: "Error obteniendo reporte" });
+  }
+});
+
+// GET /api/permisos/reporte-vacaciones/zip
+//
+// Descarga de una sola vez, en un .zip, el PDF de cada solicitud que
+// cumple los MISMOS filtros que el reporte en pantalla (sin paginar, igual
+// que "Exportar Excel") — evita que el navegador tenga que disparar un
+// request por fila. Por cada solicitud se arma exactamente el mismo
+// archivo que bajaría su botón individual: el último ya firmado según la
+// etapa (ver tipoPdfParaEstado en ReporteVacaciones.jsx), o el PDF simple
+// generado al vuelo si esa etapa todavía no tiene archivo (ej. el
+// servidor no firmó su propia solicitud). NEGADO no tiene PDF que ofrecer
+// — se excluye, igual que no tiene botón en pantalla.
+router.get("/reporte-vacaciones/zip", requireAuth, requireFirmante, async (req, res) => {
+  try {
+    const { where, values } = construirFiltrosReporteVacaciones(req.query);
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        vs.id, vs.estado,
+        vs.archivo_solicitante, vs.archivo_jefe, vs.archivo_superior, vs.archivo_uath,
+        sv.nombres AS servidor_nombre,
+        sv.numero_identificacion AS cedula
+      FROM core.vacacion_solicitud vs
+      JOIN core.servidor sv ON sv.id = vs.servidor_id
+      LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+      LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+      LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+      ${where}
+      ORDER BY vs.created_at DESC
+      `,
+      values,
+    );
+
+    const conPdf = rows.filter((r) => COLUMNA_POR_ESTADO[r.estado]);
+    if (!conPdf.length) {
+      return res.status(404).json({
+        message: "No hay solicitudes con PDF para los filtros aplicados",
+      });
+    }
+
+    const uploadsBase = path.resolve(process.env.UPLOADS_DIR || "uploads");
+    const limpiarNombre = (texto = "") =>
+      texto.toString().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="vacaciones_pdfs_${new Date().toISOString().split("T")[0]}.zip"`,
+    );
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => {
+      console.error("Error armando el zip de vacaciones:", err);
+      // Los headers ya se enviaron (es un stream) — no se puede mandar un
+      // JSON de error a esta altura, solo cortar la conexión.
+      res.destroy();
+    });
+    archive.pipe(res);
+
+    for (const sol of conPdf) {
+      const col = COLUMNA_POR_ESTADO[sol.estado];
+      let buffer = null;
+
+      const archivo = sol[col];
+      if (archivo) {
+        const filePath = path.join(uploadsBase, archivo.replace("/uploads/", ""));
+        if (fs.existsSync(filePath)) {
+          buffer = fs.readFileSync(filePath);
+        }
+      }
+
+      if (!buffer) {
+        try {
+          buffer = await generarPdfVacacionBuffer(sol.id);
+        } catch (err) {
+          console.error(`No se pudo generar el PDF de la solicitud ${sol.id}:`, err);
+          continue; // una solicitud con error no debe tumbar todo el zip
+        }
+      }
+
+      const nombreArchivo = `${String(sol.id).padStart(4, "0")}_${limpiarNombre(sol.cedula)}_${limpiarNombre(sol.servidor_nombre)}.pdf`;
+      archive.append(buffer, { name: nombreArchivo });
+    }
+
+    await archive.finalize();
+  } catch (err) {
+    console.error("Error generando el zip de vacaciones:", err);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Error generando el zip de PDFs" });
+    }
+    res.destroy();
   }
 });
 
