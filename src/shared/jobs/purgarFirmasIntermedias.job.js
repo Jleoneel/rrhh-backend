@@ -77,7 +77,7 @@ export const purgarFirmasIntermedias = async () => {
       SELECT id, archivo_jefe, archivo_superior, archivo_uath
       FROM core.vacacion_solicitud
       WHERE estado = 'APROBADO'
-        AND fecha_respuesta_uath < NOW() - INTERVAL '0 days'
+        AND fecha_respuesta_uath < NOW() - INTERVAL '30 days'
         AND archivo_uath IS NOT NULL
         AND (
           archivo_jefe IS NOT NULL OR
