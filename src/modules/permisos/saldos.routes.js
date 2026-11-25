@@ -5,39 +5,56 @@ import {
   requireFirmante,
   requireServidor,
 } from "../../shared/middleware/auth.middleware.js";
+import {
+  obtenerTopeDiasVacaciones,
+  calcularTopeDiasVacaciones,
+} from "../../shared/utils/regimenLaboral.js";
 
 const router = Router();
 
 router.get("/saldos", requireAuth, requireFirmante, async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT
-        sp.id, sp.horas_totales, sp.horas_usadas,
-        (sp.horas_totales - sp.horas_usadas) AS horas_disponibles,
-        sp.fecha_ingreso, sp.updated_at,
-        sv.nombres, sv.numero_identificacion AS cedula,
-        u.nombre AS unidad_organica,
-        COALESCE(mov.movimientos, '[]'::json) AS movimientos
-      FROM core.saldo_permiso sp
-      JOIN core.servidor sv ON sv.id = sp.servidor_id
-      LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
-      LEFT JOIN core.puesto p ON p.id = ap.puesto_id
-      LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
-      LEFT JOIN LATERAL (
-        SELECT json_agg(
-          json_build_object(
-            'tipo', pm.tipo,
-            'descripcion', pm.descripcion,
-            'horas', pm.horas,
-            'created_at', pm.created_at
-          ) ORDER BY pm.created_at DESC
-        ) AS movimientos
-        FROM core.permiso_movimiento pm
-        WHERE pm.servidor_id = sp.servidor_id
-      ) mov ON true
-      ORDER BY sv.nombres ASC;
+      SELECT * FROM (
+        SELECT DISTINCT ON (sp.id)
+          sp.id, sp.servidor_id, sp.horas_totales, sp.horas_usadas,
+          (sp.horas_totales - sp.horas_usadas) AS horas_disponibles,
+          sp.fecha_ingreso, sp.updated_at,
+          sv.nombres, sv.numero_identificacion AS cedula,
+          COALESCE(sv.dias_vacacion_anual, 30) AS dias_vacacion_anual,
+          rl.codigo AS codigo_regimen,
+          u.nombre AS unidad_organica,
+          COALESCE(mov.movimientos, '[]'::json) AS movimientos
+        FROM core.saldo_permiso sp
+        JOIN core.servidor sv ON sv.id = sp.servidor_id
+        LEFT JOIN core.asignacion_puesto ap ON ap.servidor_id = sv.id AND ap.estado = 'ACTIVA'
+        LEFT JOIN core.puesto p ON p.id = ap.puesto_id
+        LEFT JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+        LEFT JOIN core.regimen_laboral rl ON rl.id = p.regimen_laboral_id
+        LEFT JOIN LATERAL (
+          SELECT json_agg(
+            json_build_object(
+              'tipo', pm.tipo,
+              'descripcion', pm.descripcion,
+              'horas', pm.horas,
+              'created_at', pm.created_at
+            ) ORDER BY pm.created_at DESC
+          ) AS movimientos
+          FROM core.permiso_movimiento pm
+          WHERE pm.servidor_id = sp.servidor_id
+        ) mov ON true
+        ORDER BY sp.id, ap.id DESC
+      ) saldos
+      ORDER BY nombres ASC;
     `);
-    return res.json(rows);
+    const conTope = rows.map((r) => {
+      const tope_dias = calcularTopeDiasVacaciones(
+        r.dias_vacacion_anual,
+        r.codigo_regimen,
+      );
+      return { ...r, tope_dias, tope_horas: tope_dias * 8 };
+    });
+    return res.json(conTope);
   } catch (err) {
     console.error("Error obteniendo saldos:", err);
     return res.status(500).json({ message: "Error obteniendo saldos" });
@@ -52,6 +69,8 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
   }
 
   const horas_totales = parseFloat(dias) * 8;
+  const topeDias = await obtenerTopeDiasVacaciones(servidor_id);
+  const topeHoras = topeDias * 8;
 
   const client = await pool.connect();
   try {
@@ -61,11 +80,11 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
     INSERT INTO core.saldo_permiso (servidor_id, horas_totales, fecha_ingreso)
       VALUES ($1, $2, (SELECT fecha_ingreso FROM core.servidor WHERE id = $1))
     ON CONFLICT (servidor_id)
-      DO UPDATE SET 
-    horas_totales = LEAST(saldo_permiso.horas_totales + $2, 480),
+      DO UPDATE SET
+    horas_totales = LEAST(saldo_permiso.horas_totales + $2, $3),
     updated_at = NOW()
-    RETURNING *`, 
-    [servidor_id, horas_totales]);
+    RETURNING *`,
+    [servidor_id, horas_totales, topeHoras]);
 
     await client.query(`
       INSERT INTO core.permiso_movimiento
@@ -102,11 +121,6 @@ router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
       .status(400)
       .json({ message: "Las horas no pueden ser negativas" });
   }
-  if (nuevoTotales > 480) {
-    return res
-      .status(400)
-      .json({ message: "El total no puede superar 480 horas (60 días)" });
-  }
   if (nuevoUsadas > nuevoTotales) {
     return res
       .status(400)
@@ -127,6 +141,15 @@ router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
       return res.status(404).json({ message: "Saldo no encontrado" });
     }
     const actual = actualR.rows[0];
+
+    const topeDias = await obtenerTopeDiasVacaciones(actual.servidor_id);
+    const topeHoras = topeDias * 8;
+    if (nuevoTotales > topeHoras) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: `El total no puede superar ${topeHoras} horas (${topeDias} días) para este servidor`,
+      });
+    }
 
     const { rows } = await client.query(
       `UPDATE core.saldo_permiso
