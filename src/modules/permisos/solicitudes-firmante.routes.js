@@ -195,11 +195,18 @@ router.post(
       }
 
       const unidadR = await client.query(
-        `SELECT jefe_superior_id, nombre FROM core.unidad_organica WHERE id = $1`,
+        `SELECT jefe_id, jefe_superior_id, nombre FROM core.unidad_organica WHERE id = $1`,
         [unidad_organica_id],
       );
 
-      const jefe_firmante_id = unidadR.rows[0]?.jefe_superior_id || null;
+      // Si el firmante que solicita ES el jefe de su área, se escala al jefe
+      // superior (para evitar que se autoapruebe). Si no lo es (ej. firmante
+      // por otro cargo, como Administrador del Sistema), su jefe inmediato
+      // real es el jefe_id de su unidad, igual que en la ruta de servidor.
+      const esJefeDeSuArea = unidadR.rows[0]?.jefe_id === firmante_id;
+      const jefe_firmante_id = esJefeDeSuArea
+        ? unidadR.rows[0]?.jefe_superior_id || null
+        : unidadR.rows[0]?.jefe_id || null;
       let archivoEvidencia = null;
       if (req.file) {
         const uploadsBase = path.resolve(process.env.UPLOADS_DIR || "uploads");
