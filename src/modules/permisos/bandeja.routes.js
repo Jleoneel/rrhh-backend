@@ -6,6 +6,8 @@ import {
 } from "../../shared/middleware/auth.middleware.js";
 import { notifyCargoId } from "../../shared/utils/sseManager.js";
 import { enviarCorreo, formatearFecha } from "../../shared/utils/email.service.js";
+import { registrarAuditoria } from "../../shared/utils/auditoria.service.js";
+import { ACCION_AUDITORIA } from "../../shared/constants/auditoria.js";
 
 const router = Router();
 
@@ -118,6 +120,23 @@ router.put("/:id/responder", requireAuth, requireFirmante, async (req, res) => {
         );
       }
     }
+
+    await registrarAuditoria(client, {
+      accion:
+        estado === "APROBADO"
+          ? ACCION_AUDITORIA.PERMISO_APROBADO
+          : ACCION_AUDITORIA.PERMISO_RECHAZADO,
+      firmanteId: firmante_id,
+      servidorAfectadoId: solicitud.servidor_id,
+      recursoTipo: "permiso_solicitud",
+      recursoId: id,
+      detalle: {
+        horas_solicitadas: solicitud.horas_solicitadas,
+        fecha: solicitud.fecha,
+        observacion: observacion || null,
+      },
+      descripcion: `${estado === "APROBADO" ? "Aprobó" : "Rechazó"} el permiso #${id}`,
+    });
 
     await client.query("COMMIT");
 

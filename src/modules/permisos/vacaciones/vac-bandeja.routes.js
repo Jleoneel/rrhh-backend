@@ -9,6 +9,8 @@ import { enviarCorreo, formatearFecha } from "../../../shared/utils/email.servic
 import { reingresarSaldoSiYaDescontado } from "../../../shared/utils/saldoVacaciones.js";
 import { generarPdfVacacionBuffer } from "./vacacionesPdf.controller.js";
 import { CARGO_IDS, cargoPuedeActuarComo } from "../../../shared/constants/cargos.js";
+import { registrarAuditoria } from "../../../shared/utils/auditoria.service.js";
+import { ACCION_AUDITORIA } from "../../../shared/constants/auditoria.js";
 
 const router = Router();
 
@@ -375,6 +377,17 @@ router.put("/:id/responder-vacacion", requireAuth, requireFirmante, async (req, 
     await reingresarSaldoSiYaDescontado(client, solicitud, {
       creadoPor: firmante_id,
       descripcion: `Vacación #${id} negada en la etapa ${etapa} tras la aprobación del jefe inmediato — se reingresan las horas ya descontadas`,
+    });
+
+    const etapaAuditoria = esJefe ? "jefe inmediato" : esGerente ? "jefe superior" : "UATH";
+    await registrarAuditoria(client, {
+      accion: ACCION_AUDITORIA.VACACION_NEGADA,
+      firmanteId: firmante_id,
+      servidorAfectadoId: solicitud.servidor_id,
+      recursoTipo: "vacacion_solicitud",
+      recursoId: id,
+      detalle: { etapa: etapaAuditoria, observacion: observacion || null },
+      descripcion: `Negó la vacación #${id} en la etapa de ${etapaAuditoria}`,
     });
 
     await client.query("COMMIT");

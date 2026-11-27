@@ -17,6 +17,8 @@ import {
   cargoPuedeActuarComo,
   CARGO_IDS,
 } from "../../../shared/constants/cargos.js";
+import { registrarAuditoria } from "../../../shared/utils/auditoria.service.js";
+import { ACCION_AUDITORIA } from "../../../shared/constants/auditoria.js";
 
 const router = Router();
 
@@ -215,6 +217,20 @@ router.post(
           [id, notificarId],
         );
       }
+
+      await registrarAuditoria(client, {
+        accion: ACCION_AUDITORIA.VACACION_APROBADA_JEFE,
+        firmanteId: firmante_id,
+        servidorAfectadoId: solicitud.servidor_id,
+        recursoTipo: "vacacion_solicitud",
+        recursoId: id,
+        detalle: {
+          dias_solicitados: solicitud.dias_solicitados,
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+        },
+        descripcion: `Aprobó (firmó) como jefe inmediato la vacación #${id}`,
+      });
 
       await client.query("COMMIT");
     } catch (err) {
@@ -430,6 +446,20 @@ router.post(
         );
       }
 
+      await registrarAuditoria(client, {
+        accion: ACCION_AUDITORIA.VACACION_APROBADA_SUPERIOR,
+        firmanteId: firmante_id,
+        servidorAfectadoId: solicitud.servidor_id,
+        recursoTipo: "vacacion_solicitud",
+        recursoId: id,
+        detalle: {
+          dias_solicitados: solicitud.dias_solicitados,
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+        },
+        descripcion: `Aprobó (firmó) como jefe superior la vacación #${id}`,
+      });
+
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");
@@ -628,6 +658,20 @@ router.post(
           [id, solicitud.servidor_id],
         );
       }
+
+      await registrarAuditoria(client, {
+        accion: ACCION_AUDITORIA.VACACION_APROBADA_UATH,
+        firmanteId: firmante_id,
+        servidorAfectadoId: solicitud.servidor_id,
+        recursoTipo: "vacacion_solicitud",
+        recursoId: id,
+        detalle: {
+          dias_solicitados: solicitud.dias_solicitados,
+          fecha_inicio: solicitud.fecha_inicio,
+          fecha_fin: solicitud.fecha_fin,
+        },
+        descripcion: `Certificó (aprobación final, UATH) la vacación #${id}`,
+      });
 
       await client.query("COMMIT");
     } catch (err) {

@@ -1,0 +1,22 @@
+// Acciones auditables (v1): saldos, vacaciones y permisos — ver sql/add_auditoria.sql
+export const ACCION_AUDITORIA = {
+  SALDO_ASIGNADO: "SALDO_ASIGNADO",
+  SALDO_CORREGIDO: "SALDO_CORREGIDO",
+  VACACION_APROBADA_JEFE: "VACACION_APROBADA_JEFE",
+  VACACION_APROBADA_SUPERIOR: "VACACION_APROBADA_SUPERIOR",
+  VACACION_APROBADA_UATH: "VACACION_APROBADA_UATH",
+  VACACION_NEGADA: "VACACION_NEGADA",
+  PERMISO_APROBADO: "PERMISO_APROBADO",
+  PERMISO_RECHAZADO: "PERMISO_RECHAZADO",
+};
+
+export const ACCION_AUDITORIA_LABEL = {
+  SALDO_ASIGNADO: "Saldo asignado",
+  SALDO_CORREGIDO: "Saldo corregido",
+  VACACION_APROBADA_JEFE: "Vacación aprobada (jefe inmediato)",
+  VACACION_APROBADA_SUPERIOR: "Vacación aprobada (jefe superior)",
+  VACACION_APROBADA_UATH: "Vacación certificada (UATH)",
+  VACACION_NEGADA: "Vacación negada",
+  PERMISO_APROBADO: "Permiso aprobado",
+  PERMISO_RECHAZADO: "Permiso rechazado",
+};

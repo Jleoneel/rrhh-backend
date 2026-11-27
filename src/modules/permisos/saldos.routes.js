@@ -9,6 +9,8 @@ import {
   obtenerTopeDiasVacaciones,
   calcularTopeDiasVacaciones,
 } from "../../shared/utils/regimenLaboral.js";
+import { registrarAuditoria } from "../../shared/utils/auditoria.service.js";
+import { ACCION_AUDITORIA } from "../../shared/constants/auditoria.js";
 
 const router = Router();
 
@@ -76,12 +78,17 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
   try {
     await client.query("BEGIN");
 
+  // GREATEST($3, horas_totales) antes del LEAST: si el servidor YA tenía
+  // más horas acumuladas que el tope (saldo de antes de que este límite
+  // existiera), el "techo" efectivo pasa a ser su total actual, no el
+  // tope — así simplemente no se le suma más, en vez de recortarle lo
+  // que ya tenía (nunca debe bajar el total existente de nadie).
   const { rows } = await client.query(`
     INSERT INTO core.saldo_permiso (servidor_id, horas_totales, fecha_ingreso)
       VALUES ($1, $2, (SELECT fecha_ingreso FROM core.servidor WHERE id = $1))
     ON CONFLICT (servidor_id)
       DO UPDATE SET
-    horas_totales = LEAST(saldo_permiso.horas_totales + $2, $3),
+    horas_totales = LEAST(saldo_permiso.horas_totales + $2, GREATEST($3, saldo_permiso.horas_totales)),
     updated_at = NOW()
     RETURNING *`,
     [servidor_id, horas_totales, topeHoras]);
@@ -91,6 +98,21 @@ router.post("/saldos", requireAuth, requireFirmante, async (req, res) => {
         (servidor_id, horas, tipo, descripcion, creado_por)
       VALUES ($1, $2, 'INICIALIZACION', $3, $4)
     `, [servidor_id, horas_totales, descripcion || `Inicialización: ${dias} días`, req.user.firmante_id]);
+
+    await registrarAuditoria(client, {
+      accion: ACCION_AUDITORIA.SALDO_ASIGNADO,
+      firmanteId: req.user.firmante_id,
+      servidorAfectadoId: servidor_id,
+      recursoTipo: "saldo_permiso",
+      recursoId: rows[0].id,
+      detalle: {
+        dias_asignados: dias,
+        horas_asignadas: horas_totales,
+        horas_totales_resultante: rows[0].horas_totales,
+        tope_horas: topeHoras,
+      },
+      descripcion: descripcion || `Asignó ${dias} días de saldo`,
+    });
 
     await client.query("COMMIT");
     return res.status(201).json(rows[0]);
@@ -144,7 +166,12 @@ router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
 
     const topeDias = await obtenerTopeDiasVacaciones(actual.servidor_id);
     const topeHoras = topeDias * 8;
-    if (nuevoTotales > topeHoras) {
+    // Solo bloquea si esta corrección SUBE el total por encima del tope.
+    // Hay servidores con saldo acumulado de antes de que existiera este
+    // límite (quedó por encima por años de acumulación sin tope) — no
+    // tiene sentido impedirles corregir otro campo (ej. horas_usadas) solo
+    // porque su total ya venía alto; lo que no se permite es subirlo más.
+    if (nuevoTotales > topeHoras && nuevoTotales > parseFloat(actual.horas_totales)) {
       await client.query("ROLLBACK");
       return res.status(400).json({
         message: `El total no puede superar ${topeHoras} horas (${topeDias} días) para este servidor`,
@@ -172,6 +199,23 @@ router.put("/saldos/:id", requireAuth, requireFirmante, async (req, res) => {
         req.user.firmante_id,
       ],
     );
+
+    await registrarAuditoria(client, {
+      accion: ACCION_AUDITORIA.SALDO_CORREGIDO,
+      firmanteId: req.user.firmante_id,
+      servidorAfectadoId: actual.servidor_id,
+      recursoTipo: "saldo_permiso",
+      recursoId: id,
+      detalle: {
+        horas_totales_antes: actual.horas_totales,
+        horas_totales_despues: nuevoTotales,
+        horas_usadas_antes: actual.horas_usadas,
+        horas_usadas_despues: nuevoUsadas,
+      },
+      descripcion:
+        descripcion ||
+        `Corrigió saldo: total ${actual.horas_totales}h → ${nuevoTotales}h, usadas ${actual.horas_usadas}h → ${nuevoUsadas}h`,
+    });
 
     await client.query("COMMIT");
     return res.json(rows[0]);
