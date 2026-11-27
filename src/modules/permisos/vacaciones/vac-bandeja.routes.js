@@ -55,7 +55,11 @@ function construirFiltrosReporteVacaciones(query, req) {
     values.push(desde, hasta);
     i += 2;
   }
-  if (estado && estado !== "TODOS") {
+  if (estado === "PENDIENTE") {
+    // Agrupa las 3 etapas de pendiente — usado por la tarjeta "Pendientes"
+    // del resumen, que no distingue en qué paso del flujo está cada una.
+    where += ` AND vs.estado IN ('PENDIENTE_JEFE', 'PENDIENTE_GERENTE', 'PENDIENTE_UATH')`;
+  } else if (estado && estado !== "TODOS") {
     where += ` AND vs.estado = $${i}`;
     values.push(estado);
     i++;
