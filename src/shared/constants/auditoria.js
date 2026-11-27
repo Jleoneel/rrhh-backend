@@ -10,6 +10,20 @@ export const ACCION_AUDITORIA = {
   PERMISO_RECHAZADO: "PERMISO_RECHAZADO",
 };
 
+// Agrupa las acciones por categoría — usado por el filtro de "grupo" de
+// las tarjetas de resumen de Auditoría (clic en "Saldos"/"Vacaciones"/
+// "Permisos" filtra por todas las acciones de ese grupo, no por una sola).
+export const GRUPO_AUDITORIA = {
+  SALDOS: ["SALDO_ASIGNADO", "SALDO_CORREGIDO"],
+  VACACIONES: [
+    "VACACION_APROBADA_JEFE",
+    "VACACION_APROBADA_SUPERIOR",
+    "VACACION_APROBADA_UATH",
+    "VACACION_NEGADA",
+  ],
+  PERMISOS: ["PERMISO_APROBADO", "PERMISO_RECHAZADO"],
+};
+
 export const ACCION_AUDITORIA_LABEL = {
   SALDO_ASIGNADO: "Saldo asignado",
   SALDO_CORREGIDO: "Saldo corregido",

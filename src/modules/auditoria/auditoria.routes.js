@@ -4,7 +4,10 @@ import {
   requireAuth,
   requireAdmin,
 } from "../../shared/middleware/auth.middleware.js";
-import { ACCION_AUDITORIA } from "../../shared/constants/auditoria.js";
+import {
+  ACCION_AUDITORIA,
+  GRUPO_AUDITORIA,
+} from "../../shared/constants/auditoria.js";
 
 const router = Router();
 
@@ -18,7 +21,8 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 25, 1), 100);
   const offset = (page - 1) * limit;
 
-  const { accion, desde, hasta, firmante_id, servidor_id, q } = req.query;
+  const { accion, grupo, desde, hasta, firmante_id, servidor_id, q } =
+    req.query;
 
   // El filtro por texto necesita los JOIN ya resueltos (nombre/cédula),
   // así que las condiciones que lo usan van en la consulta final, no en
@@ -27,7 +31,14 @@ router.get("/", requireAuth, requireAdmin, async (req, res) => {
   const condiciones = [];
   const params = [];
 
-  if (accion && Object.values(ACCION_AUDITORIA).includes(accion)) {
+  // "grupo" (clic en la tarjeta Saldos/Vacaciones/Permisos) filtra por
+  // TODAS las acciones de esa categoría; "accion" (el select del filtro
+  // detallado) filtra por una sola — mutuamente excluyentes, grupo gana
+  // si ambos vienen por error.
+  if (grupo && GRUPO_AUDITORIA[grupo]) {
+    params.push(GRUPO_AUDITORIA[grupo]);
+    condiciones.push(`a.accion = ANY($${params.length})`);
+  } else if (accion && Object.values(ACCION_AUDITORIA).includes(accion)) {
     params.push(accion);
     condiciones.push(`a.accion = $${params.length}`);
   }
