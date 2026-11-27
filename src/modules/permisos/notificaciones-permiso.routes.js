@@ -69,7 +69,7 @@ router.get("/firmante", requireAuth, requireFirmante, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    console.error("Error en notificaciones-permiso:", err);
+    console.error("Error obteniendo notificaciones de permisos (firmante):", err);
     return res.status(500).json({ message: "Error" });
   }
 });
@@ -91,7 +91,7 @@ router.get("/servidor", requireAuth, requireServidor, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    console.error("Error en notificaciones-permiso:", err);
+    console.error("Error obteniendo notificaciones de permisos (servidor):", err);
     return res.status(500).json({ message: "Error" });
   }
 });
@@ -106,7 +106,7 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Error en notificaciones-permiso:", err);
+    console.error("Error marcando notificación de permiso como leída:", err);
     return res.status(500).json({ message: "Error" });
   }
 });
@@ -124,7 +124,7 @@ router.patch(
       );
       return res.json({ ok: true });
     } catch (err) {
-      console.error("Error en notificaciones-permiso:", err);
+      console.error("Error marcando notificaciones de permiso como leídas (firmante):", err);
       return res.status(500).json({ message: "Error" });
     }
   },
@@ -143,7 +143,7 @@ router.patch(
       );
       return res.json({ ok: true });
     } catch (err) {
-      console.error("Error en notificaciones-permiso:", err);
+      console.error("Error marcando notificaciones de permiso como leídas (servidor):", err);
       return res.status(500).json({ message: "Error" });
     }
   },
@@ -178,7 +178,7 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
-      console.error("Error en notificaciones-permiso:", err);
+      console.error("Error obteniendo notificaciones de vacaciones (firmante):", err);
       return res.status(500).json({ message: "Error" });
     }
   },
@@ -211,7 +211,7 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
-      console.error("Error en notificaciones-permiso:", err);
+      console.error("Error obteniendo notificaciones de vacaciones (servidor):", err);
       return res.status(500).json({ message: "Error" });
     }
   },
@@ -246,7 +246,7 @@ router.get(
       );
       return res.json(rows);
     } catch (err) {
-      console.error("Error en notificaciones-permiso:", err);
+      console.error("Error obteniendo notificaciones de cronograma de vacaciones:", err);
       return res.status(500).json({ message: "Error" });
     }
   },

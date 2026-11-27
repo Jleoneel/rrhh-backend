@@ -54,7 +54,7 @@ router.get("/", requireAuth, async (req, res) => {
     );
     return res.json(rows);
   } catch (err) {
-    console.error("Error en recepcion-notificaciones:", err);
+    console.error("Error obteniendo notificaciones de recepción:", err);
     return res.status(500).json({ message: "Error" });
   }
 });
@@ -73,7 +73,7 @@ router.patch("/:id/leer", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Error en recepcion-notificaciones:", err);
+    console.error("Error marcando notificación de recepción como leída:", err);
     return res.status(500).json({ message: "Error" });
   }
 });
@@ -91,7 +91,7 @@ router.patch("/leer-todas", requireAuth, async (req, res) => {
     );
     return res.json({ ok: true });
   } catch (err) {
-    console.error("Error en recepcion-notificaciones:", err);
+    console.error("Error marcando notificaciones de recepción como leídas:", err);
     return res.status(500).json({ message: "Error" });
   }
 });
