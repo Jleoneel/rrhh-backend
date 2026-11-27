@@ -259,10 +259,13 @@ router.post(
             [nuevaSolicitud.id],
           );
           const msg =
-            err.message?.includes("password") ||
-            err.message?.includes("passphrase")
+            err.tipoFirma === "contrasena_incorrecta"
               ? "Contraseña del certificado incorrecta"
-              : "Error firmando la solicitud: " + err.message;
+              : err.tipoFirma === "certificado_invalido"
+                ? "Tu certificado digital (.p12) parece estar dañado o no es válido. Vuelve a subirlo en Mi Certificado."
+                : err.tipoFirma === "certificado_no_encontrado"
+                  ? "No se encontró tu certificado digital en el servidor. Vuelve a subirlo en Mi Certificado."
+                  : "Error firmando la solicitud: " + err.message;
           return res.status(400).json({ message: msg });
         }
       }

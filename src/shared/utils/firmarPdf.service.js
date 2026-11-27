@@ -248,6 +248,54 @@ const calcularSignatureLength = async (p12Buffer, p12Password) => {
   return (rawDePrueba.length + MARGEN_SEGURIDAD_FIRMA) * 2;
 };
 
+// Clasifica errores de firma con .p12. node-forge (usado por
+// @signpdf/signer-p12 para leer el .p12) lanza mensajes crudos pensados
+// para un desarrollador, no para quien lee los logs en producción — ej.
+// "PKCS#12 MAC could not be verified. Invalid password?" cuando el jefe o
+// firmante simplemente escribió mal su contraseña. Sin esta clasificación,
+// ese caso normal y frecuente se veía en los logs como "Error critico",
+// igual que un fallo real del sistema.
+const PATRONES_CONTRASENA_INCORRECTA = [
+  /password/i,
+  /passphrase/i,
+  /mac could not be verified/i,
+  /mac was not validated/i,
+  /failed to decrypt pkcs#12 safecontents/i,
+];
+
+const PATRONES_CERTIFICADO_INVALIDO = [
+  /is not an octet string/i,
+  /too few bytes/i,
+  /unsupported mac algorithm/i,
+  /asn\.1 parsing error/i,
+  /authenticatedsafe expected/i,
+];
+
+export function clasificarErrorFirmaP12(error) {
+  const mensaje = error?.message || "";
+
+  if (error?.code === "ENOENT") {
+    return {
+      tipo: "certificado_no_encontrado",
+      mensajeLog:
+        "Certificado .p12 no encontrado en disco (¿se movió, se eliminó, o el registro apunta a una ruta vieja?)",
+    };
+  }
+  if (PATRONES_CONTRASENA_INCORRECTA.some((re) => re.test(mensaje))) {
+    return {
+      tipo: "contrasena_incorrecta",
+      mensajeLog: "Contraseña del certificado incorrecta (intento de firma fallido, no es un error del sistema)",
+    };
+  }
+  if (PATRONES_CERTIFICADO_INVALIDO.some((re) => re.test(mensaje))) {
+    return {
+      tipo: "certificado_invalido",
+      mensajeLog: `Certificado .p12 inválido o corrupto: ${mensaje}`,
+    };
+  }
+  return { tipo: "desconocido", mensajeLog: mensaje };
+}
+
 // FIRMA SIMPLIFICADA PARA VACACIONES
 export const firmarPdfConP12 = async ({
   pdfInputBuffer,
@@ -336,8 +384,15 @@ export const firmarPdfConP12 = async ({
 
     return signedPdf;
   } catch (error) {
-    console.error(`[SIGN] Error critico:`, error.message);
-    throw new Error(`Error en firma digital: ${error.message}`);
+    const { tipo, mensajeLog } = clasificarErrorFirmaP12(error);
+    if (tipo === "desconocido") {
+      console.error(`[SIGN] Error critico:`, mensajeLog);
+    } else {
+      console.warn(`[SIGN] ${mensajeLog}`);
+    }
+    const errorClasificado = new Error(`Error en firma digital: ${error.message}`);
+    errorClasificado.tipoFirma = tipo;
+    throw errorClasificado;
   }
 };
 
@@ -451,8 +506,15 @@ export const firmarPdfAccionConP12 = async ({
     console.log(`[SIGN ACCION] ${posicion} firmado: ${signedPdf.length} bytes`);
     return signedPdf;
   } catch (error) {
-    console.error(`[SIGN ACCION] Error:`, error.message);
-    throw new Error(`Error firmando acción: ${error.message}`);
+    const { tipo, mensajeLog } = clasificarErrorFirmaP12(error);
+    if (tipo === "desconocido") {
+      console.error(`[SIGN ACCION] Error critico:`, mensajeLog);
+    } else {
+      console.warn(`[SIGN ACCION] ${mensajeLog}`);
+    }
+    const errorClasificado = new Error(`Error firmando acción: ${error.message}`);
+    errorClasificado.tipoFirma = tipo;
+    throw errorClasificado;
   }
 };
 

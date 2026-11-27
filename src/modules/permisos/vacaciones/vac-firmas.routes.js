@@ -147,13 +147,22 @@ router.post(
         });
       } catch (err) {
         await client.query("ROLLBACK");
-        if (
-          err.message?.includes("password") ||
-          err.message?.includes("passphrase")
-        ) {
+        if (err.tipoFirma === "contrasena_incorrecta") {
           return res
             .status(400)
             .json({ message: "Contraseña del token incorrecta" });
+        }
+        if (err.tipoFirma === "certificado_invalido") {
+          return res.status(400).json({
+            message:
+              "Tu certificado digital (.p12) parece estar dañado o no es válido. Vuelve a subirlo en Mi Certificado.",
+          });
+        }
+        if (err.tipoFirma === "certificado_no_encontrado") {
+          return res.status(400).json({
+            message:
+              "No se encontró tu certificado digital en el servidor. Vuelve a subirlo en Mi Certificado.",
+          });
         }
         throw err;
       }
@@ -371,13 +380,22 @@ router.post(
         });
       } catch (err) {
         await client.query("ROLLBACK");
-        if (
-          err.message?.includes("password") ||
-          err.message?.includes("passphrase")
-        ) {
+        if (err.tipoFirma === "contrasena_incorrecta") {
           return res
             .status(400)
             .json({ message: "Contraseña del token incorrecta" });
+        }
+        if (err.tipoFirma === "certificado_invalido") {
+          return res.status(400).json({
+            message:
+              "Tu certificado digital (.p12) parece estar dañado o no es válido. Vuelve a subirlo en Mi Certificado.",
+          });
+        }
+        if (err.tipoFirma === "certificado_no_encontrado") {
+          return res.status(400).json({
+            message:
+              "No se encontró tu certificado digital en el servidor. Vuelve a subirlo en Mi Certificado.",
+          });
         }
         throw err;
       }
@@ -562,8 +580,18 @@ router.post(
         });
       } catch (err) {
         await client.query("ROLLBACK");
-        if (err.message?.includes("password") || err.message?.includes("passphrase"))
+        if (err.tipoFirma === "contrasena_incorrecta")
           return res.status(400).json({ message: "Contraseña del token incorrecta" });
+        if (err.tipoFirma === "certificado_invalido")
+          return res.status(400).json({
+            message:
+              "Tu certificado digital (.p12) parece estar dañado o no es válido. Vuelve a subirlo en Mi Certificado.",
+          });
+        if (err.tipoFirma === "certificado_no_encontrado")
+          return res.status(400).json({
+            message:
+              "No se encontró tu certificado digital en el servidor. Vuelve a subirlo en Mi Certificado.",
+          });
         throw err;
       }
 
