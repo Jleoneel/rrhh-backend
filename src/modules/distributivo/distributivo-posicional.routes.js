@@ -25,6 +25,36 @@ const excelFechaADate = (numeroExcel) => {
   return `${fecha.y}-${String(fecha.m).padStart(2, "0")}-${String(fecha.d).padStart(2, "0")}`;
 };
 
+const normalizarEncabezado = (valor) => String(valor || "").toUpperCase().trim();
+
+// Ubica una columna por el TEXTO de su encabezado en vez de un número de
+// columna fijo. El Ministerio cambia el formato del Excel posicional sin
+// avisar (ej. nov/2026: quitaron la columna "EOD" y todo lo siguiente se
+// corrió una posición) — con índices fijos, el import sigue "funcionando"
+// sin errores pero leyendo las columnas equivocadas en silencio (pasó: 0
+// actualizados porque "cédula" terminaba leyendo la columna de nombres).
+// Todos los patrones deben aparecer en el encabezado para considerarlo un
+// match (ej. "CORREO" + "INSTITU" evita confundir el correo institucional
+// con el personal).
+function encontrarColumna(filaEncabezados, ...patrones) {
+  for (let i = 0; i < filaEncabezados.length; i++) {
+    const texto = normalizarEncabezado(filaEncabezados[i]);
+    if (patrones.every((p) => texto.includes(p))) return i;
+  }
+  return -1;
+}
+
+// Busca la fila de encabezados por contenido (contiene "CEDULA"), no por
+// número de fila fijo — el formato nuevo corrió los encabezados una fila
+// hacia abajo respecto al anterior.
+function encontrarFilaEncabezados(filas) {
+  const limite = Math.min(filas.length, 15);
+  for (let r = 0; r < limite; r++) {
+    if (encontrarColumna(filas[r], "CEDULA") !== -1) return r;
+  }
+  return -1;
+}
+
 router.post(
   "/import-posicional",
   requireAuth,
@@ -39,11 +69,33 @@ router.post(
       const ws = wb.Sheets[wb.SheetNames[0]];
       const filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-      // Headers en fila 4, datos desde fila 6
-      const DATA_START = 6;
-      const COL_CEDULA = 4;
-      const COL_EMAIL_INST = 19;
-      const COL_FECHA_INGRESO = 16;
+      const filaEncabezados = encontrarFilaEncabezados(filas);
+      if (filaEncabezados === -1) {
+        return res.status(400).json({
+          message:
+            "No se encontró la columna 'CEDULA' en el Excel. Verifica que sea el formato correcto del posicional.",
+        });
+      }
+
+      const encabezados = filas[filaEncabezados];
+      const COL_CEDULA = encontrarColumna(encabezados, "CEDULA");
+      const COL_EMAIL_INST = encontrarColumna(encabezados, "CORREO", "INSTITU");
+      const COL_FECHA_INGRESO = encontrarColumna(encabezados, "FECHA INGRESO");
+
+      if (COL_CEDULA === -1 || COL_EMAIL_INST === -1 || COL_FECHA_INGRESO === -1) {
+        return res.status(400).json({
+          message:
+            "No se encontraron todas las columnas necesarias en el Excel " +
+            `(cédula: ${COL_CEDULA !== -1 ? "OK" : "falta"}, ` +
+            `correo institucional: ${COL_EMAIL_INST !== -1 ? "OK" : "falta"}, ` +
+            `fecha de ingreso: ${COL_FECHA_INGRESO !== -1 ? "OK" : "falta"}).`,
+        });
+      }
+
+      // Los datos empiezan justo después del encabezado — puede haber una
+      // fila en blanco de por medio, pero el chequeo de "!cedula" más
+      // abajo ya la salta sin necesidad de un offset fijo.
+      const DATA_START = filaEncabezados + 1;
 
       let actualizados = 0;
       let sinEmail = 0;
