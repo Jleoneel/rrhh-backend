@@ -62,6 +62,35 @@ router.get(
 
       const total = parseInt(countResult.rows[0].total);
 
+      // Desglose con/sin usuario sobre la misma base de "activo/todas" +
+      // "search", pero SIN el filtro con_usuario/sin_usuario — si se
+      // calculara con ese filtro ya aplicado, el número sería siempre el
+      // 100% de lo que se está viendo (circular). Antes esto se calculaba
+      // en el frontend contando solo la página actual (10 filas), lo que
+      // daba un desglose falso en cuanto hubiera más de una página.
+      let whereBase = `WHERE 1=1`;
+      const valuesBase = [];
+      let j = 1;
+      if (todas !== "true") whereBase += ` AND sv.activo = true`;
+      if (search) {
+        whereBase += ` AND (sv.nombres ILIKE $${j} OR sv.numero_identificacion ILIKE $${j})`;
+        valuesBase.push(`%${search}%`);
+        j++;
+      }
+      const desgloseResult = await pool.query(
+        `
+      SELECT
+        COUNT(*) FILTER (WHERE us.id IS NOT NULL) AS con_usuario,
+        COUNT(*) FILTER (WHERE us.id IS NULL) AS sin_usuario
+      FROM core.servidor sv
+      LEFT JOIN core.usuario_servidor us ON us.servidor_id = sv.id
+      ${whereBase}
+    `,
+        valuesBase,
+      );
+      const conUsuario = parseInt(desgloseResult.rows[0].con_usuario);
+      const sinUsuario = parseInt(desgloseResult.rows[0].sin_usuario);
+
       // Datos paginados
       const { rows } = await pool.query(
         `
@@ -93,6 +122,8 @@ router.get(
       return res.json({
         data: rows,
         total,
+        con_usuario: conUsuario,
+        sin_usuario: sinUsuario,
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(total / parseInt(limit)),
