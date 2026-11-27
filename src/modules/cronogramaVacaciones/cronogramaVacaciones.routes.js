@@ -118,19 +118,42 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
   const limit = Math.max(1, parseInt(req.query.limit) || 10);
   const offset = (page - 1) * limit;
 
+  // Tarjetas "Con vacaciones planificadas" / "En su tope anual" son
+  // clickeables (filtran la tabla) — igual que estado_cronograma lo hace
+  // sobre un agregado por servidor (suma de días del año), no sobre una
+  // columna simple, así que el COUNT para la paginación necesita la MISMA
+  // subconsulta agregada que el listado y el resumen, con un HAVING
+  // aplicado ahí (no se puede filtrar por SUM(b.dias) en el WHERE plano).
+  const { estado_cronograma } = req.query;
+  const havingClause =
+    estado_cronograma === "con_vacaciones"
+      ? "HAVING COALESCE(SUM(b.dias), 0) > 0"
+      : estado_cronograma === "en_tope"
+        ? "HAVING COALESCE(SUM(b.dias), 0) >= COALESCE(sv.dias_vacacion_anual, " +
+          TOPE_DIAS_ANUAL_DEFAULT +
+          ")"
+        : "";
+
   try {
-    const countFiltros = construirFiltros(req, 1);
+    const countFiltros = construirFiltros(req, 2);
     const countR = await pool.query(
       `
-      SELECT COUNT(DISTINCT sv.id) AS total
-      FROM core.asignacion_puesto ap
-      JOIN core.puesto p ON p.id = ap.puesto_id
-      JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
-      JOIN core.servidor sv ON sv.id = ap.servidor_id
-      WHERE ap.estado = 'ACTIVA' AND sv.activo = true
-      ${countFiltros.sql}
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT sv.id
+        FROM core.asignacion_puesto ap
+        JOIN core.puesto p ON p.id = ap.puesto_id
+        JOIN core.unidad_organica u ON u.id = p.unidad_organica_id
+        JOIN core.servidor sv ON sv.id = ap.servidor_id
+        LEFT JOIN core.cronograma_vacaciones_bloque b
+          ON b.servidor_id = sv.id AND b.anio = $1
+        WHERE ap.estado = 'ACTIVA' AND sv.activo = true
+        ${countFiltros.sql}
+        GROUP BY sv.id, sv.dias_vacacion_anual
+        ${havingClause}
+      ) sub
       `,
-      countFiltros.values,
+      [anio, ...countFiltros.values],
     );
     const total = parseInt(countR.rows[0].total);
 
@@ -181,6 +204,7 @@ router.get("/", requireAuth, requireFirmante, async (req, res) => {
       WHERE ap.estado = 'ACTIVA' AND sv.activo = true
       ${listaFiltros.sql}
       GROUP BY sv.id, sv.nombres, sv.numero_identificacion, d.nombre, u.nombre, sv.dias_vacacion_anual
+      ${havingClause}
       ORDER BY sv.nombres ASC
       LIMIT $${listaFiltros.siguiente} OFFSET $${listaFiltros.siguiente + 1}
       `,
